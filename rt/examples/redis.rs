@@ -53,7 +53,7 @@ fn main() -> Result<(), rt::Error> {
     let mut runtime = Runtime::setup().use_all_cores().build()?;
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
         let options = ActorOptions::default().with_priority(Priority::LOW);
-        let server_ref = runtime_ref.spawn_local(ServerSupervisor, server, (), options);
+        let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
@@ -67,7 +67,7 @@ struct ServerSupervisor;
 
 impl<NA> Supervisor<NA> for ServerSupervisor
 where
-    NA: NewActor<Argument = (), Error = !>,
+    NA: NewActor<Argument = (), Error = io::Error>,
     NA::Actor: Actor<Error = ServerError<!>>,
 {
     fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
@@ -80,12 +80,13 @@ where
         }
     }
 
-    fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
-        err
+    fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+        error!("failed to restart listener, trying again: {err}");
+        SupervisorStrategy::Restart(())
     }
 
-    fn second_restart_error(&mut self, err: !) {
-        err
+    fn second_restart_error(&mut self, err: io::Error) {
+        error!("failed to restart listener a second time, stopping it: {err}");
     }
 }
 

@@ -69,7 +69,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
         let supervisor = ServerSupervisor::new();
         let options = ActorOptions::default().with_priority(Priority::LOW);
-        let server_ref = runtime_ref.spawn_local(supervisor, server, (), options);
+        let server_ref = runtime_ref.try_spawn_local(supervisor, server, (), options)?;
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;

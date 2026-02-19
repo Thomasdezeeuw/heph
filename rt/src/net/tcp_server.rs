@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::net::SocketAddr;
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{io, mem, ptr};
 
 use heph::actor::{self, NewActor, NoMessages};
@@ -11,7 +11,7 @@ use crate::access::Access;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
-use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type, option};
+use crate::net::{ServerError, ServerMessage, option};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::syscall;
 use crate::util::{either, next};
@@ -49,9 +49,9 @@ use crate::util::{either, next};
 /// # #![feature(never_type)]
 /// use std::io;
 ///
-/// use heph::actor::{self, actor_fn};
+/// use heph::actor::{self, actor_fn, Actor, NewActor};
 /// # use heph::messages::Terminate;
-/// use heph::supervisor::SupervisorStrategy;
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::fd::AsyncFd;
 /// use heph_rt::net::{TcpServer, ServerError};
 /// use heph_rt::spawn::ActorOptions;
@@ -78,23 +78,41 @@ use crate::util::{either, next};
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
-///     runtime_ref.spawn_local(server_supervisor, server, (), options);
+///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///     # actor_ref.try_send(Terminate).unwrap();
 ///
 ///     Ok(())
 /// }
 ///
 /// /// Our supervisor for the TCP server.
-/// fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
-///     match err {
-///         // When we hit an error accepting a connection we'll drop the old
-///         // server and create a new one.
-///         ServerError::Accept(err) => {
-///             log::error!("error accepting new connection: {err}");
-///             SupervisorStrategy::Restart(())
+/// #[derive(Copy, Clone, Debug)]
+/// struct ServerSupervisor;
+///
+/// impl<NA> Supervisor<NA> for ServerSupervisor
+/// where
+///     NA: NewActor<Argument = (), Error = io::Error>,
+///     NA::Actor: Actor<Error = ServerError<!>>,
+/// {
+///     fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
+///         match err {
+///             // When we hit an error accepting a connection we'll drop the old
+///             // listener and create a new one.
+///             ServerError::Accept(err) => {
+///                 log::error!("error accepting new connection: {err}");
+///                 SupervisorStrategy::Restart(())
+///             }
+///             // Async function never return an error creating a new actor.
+///             ServerError::NewActor(err) => err,
 ///         }
-///         // Async function never return an error creating a new actor.
-///         ServerError::NewActor(_) => unreachable!(),
+///     }
+///
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+///         log::error!("failed to restart listener, trying again: {err}");
+///         SupervisorStrategy::Restart(())
+///     }
+///
+///     fn second_restart_error(&mut self, err: io::Error) {
+///         log::error!("failed to restart listener a second time, stopping it: {err}");
 ///     }
 /// }
 ///
@@ -142,7 +160,7 @@ use crate::util::{either, next};
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let server = TcpServer::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let server_ref = runtime_ref.spawn_local(server_supervisor, server, (), options);
+///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
 ///     // Because the server is just another actor we can send it messages. Here
 ///     // we'll send it a terminate message so it will gracefully shutdown.
@@ -151,19 +169,37 @@ use crate::util::{either, next};
 ///     Ok(())
 /// }
 ///
-/// // NOTE: `main`, `server_supervisor`, `conn_supervisor` and `conn_actor` are the same as
+/// // NOTE: `main`, `ServerSupervisor`, `conn_supervisor` and `conn_actor` are the same as
 /// // in the previous example.
+/// # /// Our supervisor for the TCP server.
+/// # #[derive(Copy, Clone, Debug)]
+/// # struct ServerSupervisor;
 /// #
-/// # fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
-/// #     match err {
-/// #         // When we hit an error accepting a connection we'll drop the old
-/// #         // server and create a new one.
-/// #         ServerError::Accept(err) => {
-/// #             log::error!("error accepting new connection: {err}");
-/// #             SupervisorStrategy::Restart(())
+/// # impl<NA> heph::Supervisor<NA> for ServerSupervisor
+/// # where
+/// #     NA: heph::NewActor<Argument = (), Error = io::Error>,
+/// #     NA::Actor: heph::Actor<Error = ServerError<!>>,
+/// # {
+/// #     fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
+/// #         match err {
+/// #             // When we hit an error accepting a connection we'll drop the old
+/// #             // listener and create a new one.
+/// #             ServerError::Accept(err) => {
+/// #                 log::error!("error accepting new connection: {err}");
+/// #                 SupervisorStrategy::Restart(())
+/// #             }
+/// #             // Async function never return an error creating a new actor.
+/// #             ServerError::NewActor(err) => err,
 /// #         }
-/// #         // Async function never return an error creating a new actor.
-/// #         ServerError::NewActor(_) => unreachable!(),
+/// #     }
+/// #
+/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+/// #         log::error!("failed to restart listener, trying again: {err}");
+/// #         SupervisorStrategy::Restart(())
+/// #     }
+/// #
+/// #     fn second_restart_error(&mut self, err: io::Error) {
+/// #         log::error!("failed to restart listener a second time, stopping it: {err}");
 /// #     }
 /// # }
 /// #
@@ -206,29 +242,47 @@ use crate::util::{either, next};
 ///
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
-///     runtime.try_spawn(server_supervisor, server, (), options)
+///     runtime.try_spawn(ServerSupervisor, server, (), options)
 ///         .map_err(rt::Error::setup)?;
 ///     # actor_ref.try_send(Terminate).unwrap();
 ///
 ///     runtime.start()
 /// }
 ///
-/// // NOTE: `server_supervisor`, `conn_supervisor` and `conn_actor` are the same as
+/// // NOTE: `ServerSupervisor`, `conn_supervisor` and `conn_actor` are the same as
 /// // in the previous example.
-/// #
 /// # /// Our supervisor for the TCP server.
-/// # fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
-/// #     match err {
-/// #         // When we hit an error accepting a connection we'll drop the old
-/// #         // server and create a new one.
-/// #         ServerError::Accept(err) => {
-/// #             log::error!("error accepting new connection: {err}");
-/// #             SupervisorStrategy::Restart(())
+/// # #[derive(Copy, Clone, Debug)]
+/// # struct ServerSupervisor;
+/// #
+/// # impl<NA> heph::Supervisor<NA> for ServerSupervisor
+/// # where
+/// #     NA: heph::NewActor<Argument = (), Error = io::Error>,
+/// #     NA::Actor: heph::Actor<Error = ServerError<!>>,
+/// # {
+/// #     fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
+/// #         match err {
+/// #             // When we hit an error accepting a connection we'll drop the old
+/// #             // listener and create a new one.
+/// #             ServerError::Accept(err) => {
+/// #                 log::error!("error accepting new connection: {err}");
+/// #                 SupervisorStrategy::Restart(())
+/// #             }
+/// #             // Async function never return an error creating a new actor.
+/// #             ServerError::NewActor(err) => err,
 /// #         }
-/// #         // Async function never return an error creating a new actor.
-/// #         ServerError::NewActor(_) => unreachable!(),
+/// #     }
+/// #
+/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+/// #         log::error!("failed to restart listener, trying again: {err}");
+/// #         SupervisorStrategy::Restart(())
+/// #     }
+/// #
+/// #     fn second_restart_error(&mut self, err: io::Error) {
+/// #         log::error!("failed to restart listener a second time, stopping it: {err}");
 /// #     }
 /// # }
+/// #
 /// #
 /// # /// `conn_actor`'s supervisor.
 /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
@@ -242,19 +296,13 @@ use crate::util::{either, next};
 /// #     Ok(())
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TcpServer<S, NA> {
-    /// All fields are in an `Arc` to allow `Setup` to cheaply be cloned and
-    /// still be `Send` and `Sync` for use in the setup function of `Runtime`.
-    inner: Arc<Inner<S, NA>>,
-}
-
-#[derive(Debug)]
-struct Inner<S, NA> {
-    /// Unused socket bound to the `address`, it is just used to return an error
-    /// quickly if we can't create the socket or bind to the address.
-    _socket: std::os::fd::OwnedFd,
-    /// Address of the `listener`, used to create new sockets.
+    /// Socket we bind in `TcpServer::new` to `address`, to return an error
+    /// quickly if we can't create the socket or bind to the address. Used in
+    /// the first call to `NewActor::new`.
+    socket: Arc<Mutex<Option<std::os::fd::OwnedFd>>>,
+    /// Address of the `socket`.
     address: SocketAddr,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
@@ -315,20 +363,18 @@ impl<S, NA> TcpServer<S, NA> {
             }
 
             Ok(TcpServer {
-                inner: Arc::new(Inner {
-                    _socket: socket,
-                    address,
-                    supervisor,
-                    new_actor,
-                    options,
-                }),
+                socket: Arc::new(Mutex::new(Some(socket))),
+                address,
+                supervisor,
+                new_actor,
+                options,
             })
         })
     }
 
     /// Returns the address the server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
-        self.inner.address
+        self.address
     }
 }
 
@@ -406,7 +452,7 @@ where
     type Message = ServerMessage;
     type Argument = ();
     type Actor = impl Future<Output = Result<(), ServerError<NA::Error>>>;
-    type Error = !;
+    type Error = io::Error;
     type RuntimeAccess = NA::RuntimeAccess;
 
     fn new(
@@ -414,28 +460,27 @@ where
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         (): Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        let this = &*self.inner;
+        let fd = if let Some(fd) = self.socket.lock().unwrap().take() {
+            fd // Reuse the already created socket if we can.
+        } else {
+            bind_listener(self.address)? // Or create a new socket.
+        };
+        let listener = AsyncFd::new(fd, ctx.runtime_ref().sq());
         Ok(tcp_server(
             ctx,
-            this.address,
-            this.supervisor.clone(),
-            this.new_actor.clone(),
-            this.options.clone(),
+            listener,
+            self.address,
+            self.supervisor.clone(),
+            self.new_actor.clone(),
+            self.options.clone(),
         ))
-    }
-}
-
-impl<S, NA> Clone for TcpServer<S, NA> {
-    fn clone(&self) -> TcpServer<S, NA> {
-        TcpServer {
-            inner: self.inner.clone(),
-        }
     }
 }
 
 #[allow(clippy::cast_possible_truncation)] // For setting of IncomingCpu.
 async fn tcp_server<S, NA>(
     mut ctx: actor::Context<ServerMessage, NA::RuntimeAccess>,
+    listener: AsyncFd,
     local: SocketAddr,
     supervisor: S,
     new_actor: NA,
@@ -446,7 +491,17 @@ where
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
-    let listener = setup_listener(ctx.runtime_ref(), local)
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    if let Some(cpu) = ctx.runtime_ref().cpu() {
+        if let Err(err) = listener
+            .set_socket_option::<option::IncomingCpu>(cpu as u32)
+            .await
+        {
+            log::warn!("failed to set CPU affinity on TCP server, continuing anyway: {err}");
+        }
+    }
+    listener
+        .listen(libc::SOMAXCONN)
         .await
         .map_err(ServerError::Accept)?;
     log::trace!(address:% = local; "TCP server listening");
@@ -492,32 +547,4 @@ where
             }
         }
     }
-}
-
-async fn setup_listener<RT: Access>(rt: &RT, local: SocketAddr) -> io::Result<AsyncFd> {
-    let listener = a10::net::socket(
-        rt.sq(),
-        Domain::for_address(&local),
-        Type::STREAM,
-        Some(Protocol::TCP),
-    )
-    .await?;
-    listener
-        .set_socket_option::<option::ReuseAddress>(true)
-        .await?;
-    listener
-        .set_socket_option::<option::ReusePort>(true)
-        .await?;
-    #[cfg(any(target_os = "android", target_os = "linux"))]
-    if let Some(cpu) = rt.cpu() {
-        if let Err(err) = listener
-            .set_socket_option::<option::IncomingCpu>(cpu as u32)
-            .await
-        {
-            log::warn!("failed to set CPU affinity on TCP server: {err}");
-        }
-    }
-    listener.bind(local).await?;
-    listener.listen(libc::SOMAXCONN).await?;
-    Ok(listener)
 }
