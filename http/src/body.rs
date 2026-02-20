@@ -17,7 +17,7 @@ const LAST_CHUNK: &[u8] = b"0\r\n\r\n";
 
 /// Trait that defines a HTTP body.
 ///
-/// The trait can't be implemented outside of this create and is implemented by
+/// The trait can't be implemented outside of this crate and is implemented by
 /// the following types:
 ///
 /// * [`EmptyBody`]: no/empty body.
@@ -144,6 +144,8 @@ where
     B: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a known length.
+    ///
+    /// `length` must be the total body length in bytes.
     pub const fn new(length: usize, stream: S) -> StreamingBody<S> {
         StreamingBody {
             length,
