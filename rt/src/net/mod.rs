@@ -42,6 +42,18 @@ pub struct ServerMessage {
     _inner: (),
 }
 
+impl ServerMessage {
+    /// Returns true if the actor should stop.
+    ///
+    /// This is returned if the message is a [`Terminate`] message, or if the
+    /// [`process::Signal`] was an [exit signal].
+    ///
+    /// [exit signal]: process::Signal::should_exit
+    pub fn should_stop(&self) -> bool {
+        true
+    }
+}
+
 impl From<Terminate> for ServerMessage {
     fn from(_: Terminate) -> ServerMessage {
         ServerMessage { _inner: () }
