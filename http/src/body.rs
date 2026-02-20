@@ -96,7 +96,10 @@ pub struct OneshotBody<B> {
     bytes: B,
 }
 
-impl<B> OneshotBody<B> {
+impl<B> OneshotBody<B>
+where
+    B: Buf,
+{
     /// Create a new one-shot body.
     pub const fn new(body: B) -> OneshotBody<B> {
         OneshotBody { bytes: body }
