@@ -16,14 +16,13 @@ use std::time::SystemTime;
 
 use heph::supervisor::Supervisor;
 use heph::{NewActor, actor};
-use heph_rt::Access;
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
-use heph_rt::net::TcpServer;
 use heph_rt::spawn::Spawn;
 use heph_rt::spawn::options::{ActorOptions, InboxSize};
 use heph_rt::timer::DeadlinePassed;
+use heph_rt::{Access, net};
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
@@ -38,13 +37,13 @@ use handler::{DefaultErrorHandler, Handler, HandlerSupervisor, HttpHandle, HttpH
 
 /// HTTP server.
 ///
-/// The HTTP server uses the same design as [`TcpServer`], see that for how this
-/// type is supposed to work, including graceful shutdown.
+/// The HTTP server uses the same design as [`net::Server`], see that for how
+/// this type is supposed to work, including graceful shutdown.
 ///
 /// In additional to the usual design of spawning a single actor per incoming
 /// connection this also allows the use of request handlers.
 #[derive(Clone, Debug)]
-pub struct HttpServer<S, NA>(TcpServer<S, NA>);
+pub struct HttpServer<S, NA>(net::Server<S, NA>);
 
 impl<S, NA> HttpServer<S, NA> {
     /// Create a new HTTP server.
@@ -71,7 +70,7 @@ impl<S, NA> HttpServer<S, NA> {
         NA::RuntimeAccess: Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
     {
         let new_actor = HttpNewActor(new_actor);
-        TcpServer::new(address, supervisor, new_actor, options).map(HttpServer)
+        net::Server::new(address, supervisor, new_actor, options).map(HttpServer)
     }
 
     /// Create a new HTTP server that uses a single `Future` to handle incoming
@@ -98,11 +97,11 @@ impl<S, NA> HttpServer<S, NA> {
     {
         let new_actor = Handler::new(handler, DefaultErrorHandler);
         let options = ActorOptions::default().with_inbox_size(InboxSize::ONE);
-        TcpServer::new(address, HandlerSupervisor, new_actor, options).map(HttpServer)
+        net::Server::new(address, HandlerSupervisor, new_actor, options).map(HttpServer)
     }
 
     /// Returns the address the server is bound to.
-    pub fn local_addr(&self) -> SocketAddr {
+    pub fn local_addr(&self) -> &SocketAddr {
         self.0.local_addr()
     }
 }
