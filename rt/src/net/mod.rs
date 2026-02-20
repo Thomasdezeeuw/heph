@@ -10,7 +10,7 @@
 //!
 //! # Servers
 //!
-//! Alternatively Heph provides some easy to use servers, such as [`TcpServer`],
+//! Alternatively Heph provides some easy to use servers, such as [`Server`],
 //! which handle setting up the listeners and spawns a new actor for each
 //! incoming connection.
 //!
@@ -25,11 +25,11 @@ use heph::messages::Terminate;
 
 use crate::process;
 
-mod tcp_server;
+mod server;
 
 #[doc(inline)]
 pub use a10::net::*;
-pub use tcp_server::TcpServer;
+pub use server::Server;
 
 /// The message type used by server actors.
 ///

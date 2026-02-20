@@ -39,7 +39,7 @@ fn auto_cpu_affinity() {
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{ActorRef, NewActor, actor};
     use heph_rt::fd::AsyncFd;
-    use heph_rt::net::{self, ServerError, ServerMessage, TcpServer};
+    use heph_rt::net::{self, Server, ServerError, ServerMessage};
     use heph_rt::spawn::ActorOptions;
     use heph_rt::{RuntimeRef, ThreadLocal};
 
@@ -90,7 +90,7 @@ fn auto_cpu_affinity() {
     #[derive(Copy, Clone, Debug)]
     struct ServerSupervisor;
 
-    impl<S, NA> Supervisor<TcpServer<S, NA>> for ServerSupervisor
+    impl<S, NA> Supervisor<Server<S, NA>> for ServerSupervisor
     where
         S: Supervisor<NA> + Clone + 'static,
         NA: NewActor<Argument = AsyncFd, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
@@ -114,7 +114,7 @@ fn auto_cpu_affinity() {
 
         let address = "127.0.0.1:0".parse().unwrap();
         let accepted_stream_actor = actor_fn(accepted_stream_actor);
-        let server = TcpServer::new(
+        let server = Server::new(
             address,
             |err: io::Error| panic!("unexpected error: {err}"),
             accepted_stream_actor,

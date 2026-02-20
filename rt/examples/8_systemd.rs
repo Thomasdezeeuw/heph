@@ -5,7 +5,7 @@ use heph::actor::{self, actor_fn};
 use heph::restart_supervisor;
 use heph::supervisor::StopSupervisor;
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::TcpServer;
+use heph_rt::net::Server;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
@@ -46,9 +46,9 @@ fn main() -> Result<(), rt::Error> {
         Ok(port) => port,
         Err(err) => return Err(rt::Error::setup(format!("failed to parse port: {err}"))),
     };
-    let address = (Ipv4Addr::LOCALHOST, port).into();
+    let address: SocketAddr = (Ipv4Addr::LOCALHOST, port).into();
     let actor = actor_fn(conn_actor);
-    let server = TcpServer::new(address, StopSupervisor, actor, ActorOptions::default())
+    let server = Server::new(address, StopSupervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup()

@@ -10,7 +10,7 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::StaticBuf;
-use heph_rt::net::{ServerError, ServerMessage, TcpServer};
+use heph_rt::net::{Server, ServerError, ServerMessage};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
 use heph_rt::{self as rt, Runtime, ThreadLocal, process};
@@ -63,7 +63,7 @@ async fn stream_actor<RT>(
 
 #[test]
 fn smoke() {
-    let server = TcpServer::new(
+    let server = Server::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
@@ -74,7 +74,7 @@ fn smoke() {
 
     // TCP server should be able to be created outside the setup function and
     // used in it.
-    let local_server = TcpServer::new(
+    let local_server = Server::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
@@ -115,7 +115,7 @@ fn smoke() {
 
 #[test]
 fn zero_port() {
-    let server = TcpServer::new(
+    let server = Server::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn::<_, _, ThreadLocal, _, _>(actor),
@@ -241,7 +241,7 @@ fn new_actor_error() {
         fn second_restart_error(&mut self, _: NA::Error) {}
     }
 
-    let server = TcpServer::new(
+    let server = Server::new(
         any_local_address(),
         ErrorSupervisor,
         NewActorErrorGenerator(PhantomData),

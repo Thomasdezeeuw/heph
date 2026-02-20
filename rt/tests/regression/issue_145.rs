@@ -12,7 +12,7 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{Actor, ActorRef, NewActor};
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{Domain, ServerError, ServerMessage, TcpServer, Type, socket};
+use heph_rt::net::{Domain, Server, ServerError, ServerMessage, Type, socket};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{Access, Runtime, RuntimeRef, ThreadLocal};
 
@@ -29,8 +29,7 @@ fn issue_145_tcp_server() {
     let conn_actor =
         actor_fn(conn_actor).map_arg(move |stream| (stream, addr2.clone(), srv2.clone()));
     let address = "127.0.0.1:0".parse().unwrap();
-    let server =
-        TcpServer::new(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
+    let server = Server::new(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
     let expected_address = server.local_addr();
 
     runtime

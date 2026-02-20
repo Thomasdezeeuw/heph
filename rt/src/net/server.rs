@@ -1,8 +1,9 @@
 use std::future::Future;
+use std::mem::MaybeUninit;
 use std::net::SocketAddr;
-use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::sync::{Arc, Mutex};
-use std::{io, mem, ptr};
+use std::{fmt, io, ptr};
 
 use heph::actor::{self, NewActor, NoMessages};
 use heph::supervisor::Supervisor;
@@ -11,15 +12,15 @@ use crate::access::Access;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
-use crate::net::{ServerError, ServerMessage, option};
+use crate::net::{Domain, ServerError, ServerMessage, SocketAddress, option};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::syscall;
 use crate::util::{either, next};
 
-/// TCP server actor.
+/// Server actor.
 ///
-/// The TCP server is a [`NewActor`] that starts a new actor for each accepted
-/// TCP connection. This actor can start as a thread-local or thread-safe actor.
+/// The server is a [`NewActor`] that starts a new actor for each accepted
+/// connection. This actor can start as a thread-local or thread-safe actor.
 ///
 /// When using the thread-local variant one server should run per worker thread
 /// which spawns thread-local actors to handle the connections. See the first
@@ -33,12 +34,19 @@ use crate::util::{either, next};
 /// # Graceful shutdown
 ///
 /// Graceful shutdown is done by sending it a [`Terminate`] message, see below
-/// for an example. The TCP server can also handle (shutdown) process signals
-/// using [`RuntimeRef::receive_signals`]. See "Example 2 my ip" (in the
-/// examples directory of the source code) for an example of that.
+/// for an example. The server can also handle (shutdown) process signals using
+/// [`RuntimeRef::receive_signals`]. See "Example 2 my ip" (in the examples
+/// directory of the source code) for an example of that.
 ///
 /// [`Terminate`]: heph::messages::Terminate
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
+///
+/// # TCP & Unix sockets supported
+///
+/// The listener is created using streams type ([`Type::STREAM`]). This means
+/// that it works for TCP & Unix Domain Sockets (UDS), but not for e.g. UDP.
+///
+/// [`Type::STREAM`]: crate::net::Type::STREAM
 ///
 /// # Examples
 ///
@@ -53,7 +61,7 @@ use crate::util::{either, next};
 /// # use heph::messages::Terminate;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::fd::AsyncFd;
-/// use heph_rt::net::{TcpServer, ServerError};
+/// use heph_rt::net::{Server, ServerError};
 /// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::spawn::options::Priority;
 /// use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
@@ -65,17 +73,16 @@ use crate::util::{either, next};
 ///     runtime.start()
 /// }
 ///
-/// /// In this setup function we'll spawn the TCP server.
+/// /// In this setup function we'll spawn the server.
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // Create our TCP server.
+///     // Create our server.
 ///     let new_actor = actor_fn(conn_actor);
-///     let server = TcpServer::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///
-///     // We advice to give the TCP server a low priority to prioritise
-///     // handling of ongoing requests over accepting new requests possibly
-///     // overloading the system.
+///     // We advice to give the server a low priority to prioritise handling of ongoing
+///     // requests over accepting new requests possibly overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
 ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
@@ -84,7 +91,7 @@ use crate::util::{either, next};
 ///     Ok(())
 /// }
 ///
-/// /// Our supervisor for the TCP server.
+/// /// Our supervisor for the server.
 /// #[derive(Copy, Clone, Debug)]
 /// struct ServerSupervisor;
 ///
@@ -141,7 +148,7 @@ use crate::util::{either, next};
 /// use heph::messages::Terminate;
 /// # use heph::supervisor::SupervisorStrategy;
 /// use heph_rt::fd::AsyncFd;
-/// use heph_rt::net::{TcpServer, ServerError};
+/// use heph_rt::net::{Server, ServerError};
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::RuntimeRef;
 /// # use heph_rt::{Runtime, ThreadLocal};
@@ -155,10 +162,10 @@ use crate::util::{either, next};
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // This uses the same supervisors as in the previous example, not shown here.
 ///
-///     // Adding the TCP server is the same as in the example above.
+///     // Adding the server is the same as in the example above.
 ///     let new_actor = actor_fn(conn_actor);
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let server = TcpServer::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
@@ -171,7 +178,7 @@ use crate::util::{either, next};
 ///
 /// // NOTE: `main`, `ServerSupervisor`, `conn_supervisor` and `conn_actor` are the same as
 /// // in the previous example.
-/// # /// Our supervisor for the TCP server.
+/// # /// Our supervisor for the server.
 /// # #[derive(Copy, Clone, Debug)]
 /// # struct ServerSupervisor;
 /// #
@@ -214,8 +221,8 @@ use crate::util::{either, next};
 /// # }
 /// ```
 ///
-/// This example is similar to the first example, but runs the TCP server actor
-/// as thread-safe actor. *It's recommended to run the server as thread-local
+/// This example is similar to the first example, but runs the server actor as
+/// thread-safe actor. *It's recommended to run the server as thread-local
 /// actor!* This is just an example show its possible.
 ///
 /// ```
@@ -226,7 +233,7 @@ use crate::util::{either, next};
 /// # use heph::messages::Terminate;
 /// use heph::supervisor::{SupervisorStrategy};
 /// use heph_rt::fd::AsyncFd;
-/// use heph_rt::net::{TcpServer, ServerError};
+/// use heph_rt::net::{Server, ServerError};
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::{self as rt, Runtime, ThreadSafe};
 ///
@@ -235,9 +242,9 @@ use crate::util::{either, next};
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // Create our TCP server. We'll use the default actor options.
+///     // Create our server. We'll use the default actor options.
 ///     let new_actor = actor_fn(conn_actor);
-///     let server = TcpServer::new(address, conn_supervisor, new_actor, ActorOptions::default())
+///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())
 ///         .map_err(rt::Error::setup)?;
 ///
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
@@ -251,7 +258,7 @@ use crate::util::{either, next};
 ///
 /// // NOTE: `ServerSupervisor`, `conn_supervisor` and `conn_actor` are the same as
 /// // in the previous example.
-/// # /// Our supervisor for the TCP server.
+/// # /// Our supervisor for the server.
 /// # #[derive(Copy, Clone, Debug)]
 /// # struct ServerSupervisor;
 /// #
@@ -297,13 +304,13 @@ use crate::util::{either, next};
 /// # }
 /// ```
 #[derive(Clone, Debug)]
-pub struct TcpServer<S, NA> {
-    /// Socket we bind in `TcpServer::new` to `address`, to return an error
-    /// quickly if we can't create the socket or bind to the address. Used in
-    /// the first call to `NewActor::new`.
+pub struct Server<S, NA, A = SocketAddr> {
+    /// Socket we bind in `Server::new` to `address`, to return an error quickly
+    /// if we can't create the socket or bind to the address. Used in the first
+    /// call to `NewActor::new`.
     socket: Arc<Mutex<Option<std::os::fd::OwnedFd>>>,
     /// Address of the `socket`.
-    address: SocketAddr,
+    address: A,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
@@ -312,7 +319,7 @@ pub struct TcpServer<S, NA> {
     options: ActorOptions,
 }
 
-impl<S, NA> TcpServer<S, NA> {
+impl<S, NA, A> Server<S, NA, A> {
     /// Create a new server.
     ///
     /// Arguments:
@@ -322,80 +329,56 @@ impl<S, NA> TcpServer<S, NA> {
     ///  * `options`: the actor options used to spawn the new actors.
     #[allow(clippy::cast_possible_truncation)] // For all the libc constants.
     pub fn new(
-        mut address: SocketAddr,
+        address: A,
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
-    ) -> io::Result<TcpServer<S, NA>>
+    ) -> io::Result<Server<S, NA, A>>
     where
         S: Supervisor<NA> + Clone + 'static,
         NA: NewActor<Argument = AsyncFd> + Clone + 'static,
         NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+        A: SocketAddress + Copy + fmt::Display,
     {
-        // We create a listener which don't actually use. However it gives a
-        // nicer user-experience to get an error up-front rather than $n errors
-        // later, where $n is the number of cpu cores when spawning a new server
-        // on each worker thread.
-        bind_listener(address).and_then(|socket| {
-            // Using a port of 0 means the OS can select one for us. However
-            // we still consistently want to use the same port instead of
-            // binding to a number of random ports.
-            if address.port() == 0 {
-                let mut addr = unsafe { mem::zeroed::<libc::sockaddr_storage>() };
-                let mut size = size_of::<libc::sockaddr_storage>() as u32;
-                let _ = syscall!(getsockname(
-                    socket.as_raw_fd(),
-                    ptr::from_mut(&mut addr).cast(),
-                    &raw mut size,
-                ))?;
-                // NOTE: we just created the socket above so we know it's either
-                // IPv4 or IPv6, meaning this else case is ok.
-                let port = if addr.ss_family == (libc::AF_INET as libc::sa_family_t) {
-                    // SAFETY: `sockaddr_in` fits in `sockaddr_storage`.
-                    let addr = unsafe { &*ptr::from_ref(&addr).cast::<libc::sockaddr_in>() };
-                    u16::from_be(addr.sin_port)
-                } else {
-                    // SAFETY: `sockaddr_in6` fits in `sockaddr_storage`.
-                    let addr = unsafe { &*ptr::from_ref(&addr).cast::<libc::sockaddr_in6>() };
-                    u16::from_be(addr.sin6_port)
-                };
-                address.set_port(port);
-            }
-
-            Ok(TcpServer {
-                socket: Arc::new(Mutex::new(Some(socket))),
-                address,
-                supervisor,
-                new_actor,
-                options,
-            })
+        let fd = bind_listener(address)?;
+        // Using a port of 0 (for IP addresses) means the OS selects one for us.
+        // However, we still consistently want to use the same port instead of
+        // binding to a number of random ports. So get the local address to use
+        // as address.
+        let address = local_address(fd.as_raw_fd())?;
+        Ok(Server {
+            socket: Arc::new(Mutex::new(Some(fd))),
+            address,
+            supervisor,
+            new_actor,
+            options,
         })
     }
 
     /// Change the supervisor for the the actor that handles the connections.
     #[rustfmt::skip]
-    pub fn map_supervisor<F, S2>(self, map: F) -> TcpServer<S2, NA>
+    pub fn map_supervisor<F, S2>(self, map: F) -> Server<S2, NA, A>
     where
         F: FnOnce(S) -> S2,
         S2: Supervisor<NA> + Clone + 'static,
         NA: NewActor,
     {
-        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let Server { socket, address, supervisor, new_actor, options } = self;
         let supervisor = map(supervisor);
-        TcpServer { socket, address, supervisor, new_actor, options }
+        Server { socket, address, supervisor, new_actor, options }
     }
 
     /// Change the actor that handles the incoming connections.
     #[rustfmt::skip]
-    pub fn map_actor<F, NA2>(self, map: F) -> TcpServer<S, NA2>
+    pub fn map_actor<F, NA2>(self, map: F) -> Server<S, NA2, A>
     where
         F: FnOnce(NA) -> NA2,
         NA2: NewActor<Argument = AsyncFd> + Clone + 'static,
         NA2::RuntimeAccess: Access + Spawn<S, NA2, NA2::RuntimeAccess>,
     {
-        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let Server { socket, address, supervisor, new_actor, options } = self;
         let new_actor = map(new_actor);
-        TcpServer { socket, address, supervisor, new_actor, options }
+        Server { socket, address, supervisor, new_actor, options }
     }
 
     /// Change the actor options for the actor that handles incoming connections.
@@ -404,87 +387,75 @@ impl<S, NA> TcpServer<S, NA> {
     where
         F: FnOnce(ActorOptions) -> ActorOptions,
     {
-        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let Server { socket, address, supervisor, new_actor, options } = self;
         let options = map(options);
-        TcpServer { socket, address, supervisor, new_actor, options }
+        Server { socket, address, supervisor, new_actor, options }
     }
 
     /// Returns the address the server is bound to.
-    pub fn local_addr(&self) -> SocketAddr {
-        self.address
+    pub fn local_addr(&self) -> &A {
+        &self.address
     }
 }
 
-/// Create a new TCP listener bound to `address`, but **not** listening using
+/// Create a new listener bound to `address`, but **not** listening using
 /// blocking I/O.
-#[allow(clippy::cast_possible_truncation)] // For all the libc constants.
-fn bind_listener(address: SocketAddr) -> io::Result<std::os::fd::OwnedFd> {
-    let domain = match address {
-        SocketAddr::V4(_) => libc::AF_INET,
-        SocketAddr::V6(_) => libc::AF_INET6,
-    };
-    let fd = syscall!(socket(domain, libc::SOCK_STREAM, libc::IPPROTO_TCP))?;
+fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedFd> {
+    let domain = Domain::for_address(&address);
+    // SAFETY: a10::net::Domain has the same layout as the underlying type,
+    // which is libc::c_int.
+    let raw_domain: libc::c_int = unsafe { std::mem::transmute_copy(&domain) };
+    let fd = syscall!(socket(raw_domain, libc::SOCK_STREAM, 0))?;
     // SAFETY: just created the socket, so it's valid.
     let socket = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
 
-    // Allow other worker threads and processes to reuse the address and port
-    // we're binding to. This allows for restarting the process without dropping
-    // clients.
-    let value: libc::c_int = true.into();
-    let ptr = ptr::from_ref(&value).cast();
-    let size = size_of::<libc::c_int>() as u32;
-    let _ = syscall!(setsockopt(
-        fd,
-        libc::SOL_SOCKET,
-        libc::SO_REUSEADDR,
-        ptr,
-        size,
-    ))?;
-    let _ = syscall!(setsockopt(
-        fd,
-        libc::SOL_SOCKET,
-        libc::SO_REUSEPORT,
-        ptr,
-        size,
-    ))?;
+    if matches!(domain, Domain::IPV4 | Domain::IPV6) {
+        // Allow other worker threads and processes to reuse the address and
+        // port we're binding to. This allows for restarting the process without
+        // dropping clients.
+        let value: libc::c_int = true.into();
+        let ptr = ptr::from_ref(&value).cast();
+        let len = size_of::<libc::c_int>() as u32;
+        _ = syscall!(setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_REUSEADDR,
+            ptr,
+            len
+        ))?;
+        _ = syscall!(setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_REUSEPORT,
+            ptr,
+            len
+        ))?;
+    }
 
     // Bind the socket.
-    // SAFETY: all zeroes is valid for `sockaddr_in6`.
-    let mut addr = unsafe { mem::zeroed::<libc::sockaddr_storage>() };
-    let size = match address {
-        SocketAddr::V4(address) => {
-            // SAFETY: `sockaddr_in` fits in `sockaddr_storage`.
-            let addr = unsafe { &mut *ptr::from_mut(&mut addr).cast::<libc::sockaddr_in>() };
-            addr.sin_family = libc::AF_INET as libc::sa_family_t;
-            addr.sin_port = address.port().to_be();
-            addr.sin_addr = libc::in_addr {
-                s_addr: u32::from_ne_bytes(address.ip().octets()),
-            };
-            size_of::<libc::sockaddr_in>()
-        }
-        SocketAddr::V6(address) => {
-            // SAFETY: `sockaddr_in6` fits in `sockaddr_storage`.
-            let addr = unsafe { &mut *ptr::from_mut(&mut addr).cast::<libc::sockaddr_in6>() };
-            addr.sin6_family = libc::AF_INET6 as libc::sa_family_t;
-            addr.sin6_port = address.port().to_be();
-            addr.sin6_flowinfo = address.flowinfo();
-            addr.sin6_addr = libc::in6_addr {
-                s6_addr: address.ip().octets(),
-            };
-            addr.sin6_scope_id = address.scope_id();
-            size_of::<libc::sockaddr_in6>()
-        }
-    };
-    let _ = syscall!(bind(fd, ptr::from_ref(&addr).cast(), size as u32))?;
+    let addr = address.into_storage();
+    // SAFETY: to call, unsafe to implement.
+    let (ptr, len) = unsafe { A::as_ptr(&addr) };
+    let _ = syscall!(bind(fd, ptr.cast(), len))?;
 
     Ok(socket)
 }
 
-impl<S, NA> NewActor for TcpServer<S, NA>
+fn local_address<A: SocketAddress>(fd: RawFd) -> io::Result<A> {
+    let mut addr = MaybeUninit::uninit();
+    // SAFETY: to call, unsafe to implement.
+    let (ptr, mut len) = unsafe { A::as_mut_ptr(&mut addr) };
+    let _ = syscall!(getsockname(fd, ptr.cast(), &raw mut len,))?;
+    // SAFETY: OS initialised the address for us, so we can safely call init.
+    Ok(unsafe { A::init(addr, len) })
+}
+
+impl<S, NA, A> NewActor for Server<S, NA, A>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+    A: SocketAddress + Copy + fmt::Display,
 {
     type Message = ServerMessage;
     type Argument = ();
@@ -503,7 +474,7 @@ where
             bind_listener(self.address)? // Or create a new socket.
         };
         let listener = AsyncFd::new(fd, ctx.runtime_ref().sq());
-        Ok(tcp_server(
+        Ok(server(
             ctx,
             listener,
             self.address,
@@ -515,10 +486,10 @@ where
 }
 
 #[allow(clippy::cast_possible_truncation)] // For setting of IncomingCpu.
-async fn tcp_server<S, NA>(
+async fn server<S, NA, A>(
     mut ctx: actor::Context<ServerMessage, NA::RuntimeAccess>,
     listener: AsyncFd,
-    local: SocketAddr,
+    local: A,
     supervisor: S,
     new_actor: NA,
     options: ActorOptions,
@@ -527,6 +498,7 @@ where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+    A: fmt::Display,
 {
     #[cfg(any(target_os = "android", target_os = "linux"))]
     if let Some(cpu) = ctx.runtime_ref().cpu() {
@@ -534,21 +506,21 @@ where
             .set_socket_option::<option::IncomingCpu>(cpu as u32)
             .await
         {
-            log::warn!("failed to set CPU affinity on TCP server, continuing anyway: {err}");
+            log::warn!("failed to set CPU affinity on server, continuing anyway: {err}");
         }
     }
     listener
-        .listen(libc::SOMAXCONN)
+        .listen(libc::SOMAXCONN.cast_unsigned())
         .await
         .map_err(ServerError::Accept)?;
-    log::trace!(address:% = local; "TCP server listening");
+    log::trace!(address:% = local; "Server listening");
 
     let mut accept = listener.multishot_accept();
     let mut receive = ctx.receive_next();
     loop {
         match either(next(&mut accept), &mut receive).await {
             Ok(Some(Ok(stream))) => {
-                log::trace!("TCP server accepted connection");
+                log::trace!("Server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 #[cfg(any(target_os = "android", target_os = "linux"))]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
@@ -571,15 +543,15 @@ where
             }
             Ok(Some(Err(err))) => return Err(ServerError::Accept(err)),
             Ok(None) => {
-                log::debug!("no more connections to accept in TCP server, stopping");
+                log::debug!("no more connections to accept in server, stopping");
                 return Ok(());
             }
             Err(Ok(_)) => {
-                log::debug!("TCP server received shutdown message, stopping");
+                log::debug!("Server received shutdown message, stopping");
                 return Ok(());
             }
             Err(Err(NoMessages)) => {
-                log::debug!("All actor references to TCP server dropped, stopping");
+                log::debug!("All actor references to server dropped, stopping");
                 return Ok(());
             }
         }
