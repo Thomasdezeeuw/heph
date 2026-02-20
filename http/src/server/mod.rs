@@ -63,13 +63,13 @@ impl<S, NA> Server<S, NA> {
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
-    ) -> io::Result<Server<S, HttpNewActor<NA>>>
+    ) -> io::Result<Server<S, NewConnection<NA>>>
     where
-        S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
+        S: Supervisor<NewConnection<NA>> + Clone + 'static,
         NA: NewActor<Argument = Connection> + Clone + 'static,
-        NA::RuntimeAccess: Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
+        NA::RuntimeAccess: Access + Spawn<S, NewConnection<NA>, NA::RuntimeAccess>,
     {
-        let new_actor = HttpNewActor(new_actor);
+        let new_actor = NewConnection(new_actor);
         net::Server::new(address, supervisor, new_actor, options).map(Server)
     }
 
@@ -168,9 +168,9 @@ where
 /// converts it into a [`Connection`]. Then it passes that connection on to the
 /// provided `NewActor` in `NA`.
 #[derive(Debug, Clone)]
-pub struct HttpNewActor<NA>(NA);
+pub struct NewConnection<NA>(NA);
 
-impl<NA: NewActor<Argument = Connection>> NewActor for HttpNewActor<NA> {
+impl<NA: NewActor<Argument = Connection>> NewActor for NewConnection<NA> {
     type Message = NA::Message;
     type Argument = AsyncFd;
     type Actor = NA::Actor;
