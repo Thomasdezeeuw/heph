@@ -1,4 +1,6 @@
 //! HTTP server.
+//!
+//! See [`Server`].
 
 // TODO: Continue reading RFC 7230 section 4 Transfer Codings.
 //
@@ -7,6 +9,7 @@
 // > times out before the indicated number of octets are
 // > received, the recipient MUST consider the message to be
 // > incomplete and close the connection.
+
 use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
