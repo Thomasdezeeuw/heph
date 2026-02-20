@@ -6,13 +6,13 @@ use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 
+use heph::ActorRef;
 use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
-use heph::{ActorRef, SupervisorStrategy};
+use heph::test::PanicSupervisor;
 use heph_http::body::{BodyLength, OneshotBody};
-use heph_http::server::{RequestError, ServerError};
+use heph_http::server::RequestError;
 use heph_http::{Connection, Header, HeaderName, Headers, Method, StatusCode, Version};
-use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
@@ -584,7 +584,7 @@ impl TestServer {
         let actor = actor_fn(http_actor);
         let address = "127.0.0.1:0".parse().unwrap();
         let server =
-            heph_http::Server::new(address, conn_supervisor, actor, ActorOptions::default())
+            heph_http::Server::new(address, PanicSupervisor, actor, ActorOptions::default())
                 .map_err(heph_rt::Error::setup)
                 .unwrap();
         let address = *server.local_addr();
@@ -597,7 +597,7 @@ impl TestServer {
                     let options = ActorOptions::default().with_priority(Priority::LOW);
                     *server_ref = Some(
                         runtime_ref
-                            .try_spawn_local(server_supervisor, server, (), options)
+                            .try_spawn_local(PanicSupervisor, server, (), options)
                             .unwrap()
                             .map(),
                     );
@@ -627,17 +627,6 @@ impl TestServer {
             this.handle.take().unwrap().join().unwrap()
         }
     }
-}
-
-fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
-    match err {
-        ServerError::Accept(err) => panic!("error accepting new connection: {err}"),
-        ServerError::NewActor(_) => unreachable!(),
-    }
-}
-
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
-    panic!("error handling connection: {err}")
 }
 
 /// Routes:
