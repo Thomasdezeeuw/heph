@@ -10,7 +10,7 @@ use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
 use heph::{ActorRef, SupervisorStrategy};
 use heph_http::body::{BodyLength, OneshotBody};
-use heph_http::server::{HttpServer, RequestError, ServerError};
+use heph_http::server::{RequestError, ServerError};
 use heph_http::{Connection, Header, HeaderName, Headers, Method, StatusCode, Version};
 use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
@@ -583,10 +583,11 @@ impl TestServer {
 
         let actor = actor_fn(http_actor);
         let address = "127.0.0.1:0".parse().unwrap();
-        let server = HttpServer::new(address, conn_supervisor, actor, ActorOptions::default())
-            .map_err(heph_rt::Error::setup)
-            .unwrap();
-        let address = server.local_addr();
+        let server =
+            heph_http::Server::new(address, conn_supervisor, actor, ActorOptions::default())
+                .map_err(heph_rt::Error::setup)
+                .unwrap();
+        let address = *server.local_addr();
 
         let handle = thread::spawn(move || {
             let mut runtime = Runtime::setup().num_threads(1).build().unwrap();

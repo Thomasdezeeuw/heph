@@ -44,7 +44,7 @@ pub use head::version::Version;
 pub use request::Request;
 pub use response::Response;
 #[doc(no_inline)]
-pub use server::Connection;
+pub use server::{Connection, Server};
 
 /// Maximum size of the HTTP head (the start line and the headers).
 ///

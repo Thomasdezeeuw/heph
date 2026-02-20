@@ -6,7 +6,6 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::{SupervisorStrategy, restart_supervisor};
 use heph_http::body::OneshotBody;
-use heph_http::server::HttpServer;
 use heph_http::{self as http, Request, Response, route};
 use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
@@ -20,7 +19,7 @@ fn main() -> Result<(), heph_rt::Error> {
 
     let actor = actor_fn(http_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = HttpServer::new(address, conn_supervisor, actor, ActorOptions::default())
+    let server = heph_http::Server::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(heph_rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;

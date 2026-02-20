@@ -1,9 +1,9 @@
-//! Types for the [`HttpServer`] using handlers.
+//! Types for the [`Server`] using handlers.
 //!
-//! See [`HttpServer::new_using_handler`].
+//! See [`Server::new_using_handler`].
 //!
-//! [`HttpServer`]: crate::server::HttpServer
-//! [`HttpServer::new_using_handler`]: crate::server::HttpServer::new_using_handler
+//! [`Server`]: crate::Server
+//! [`Server::new_using_handler`]: crate::Server::new_using_handler
 
 use std::future::{self, Future};
 use std::io;
@@ -44,9 +44,9 @@ where
 
 /// Handler for incoming connections.
 ///
-/// See [`HttpServer::new_using_handler`].
+/// See [`Server::new_using_handler`].
 ///
-/// [`HttpServer::new_using_handler`]: crate::server::HttpServer::new_using_handler
+/// [`Server::new_using_handler`]: crate::Server::new_using_handler
 #[derive(Debug)]
 pub struct Handler<H, E, RT = ThreadLocal> {
     handler: H,
@@ -147,9 +147,9 @@ async fn http_actor<H: HttpHandle, E: HttpHandleError, RT>(
 
 /// Handle a [`Request`].
 ///
-/// See [`HttpServer::new_using_handler`].
+/// See [`Server::new_using_handler`].
 ///
-/// [`HttpServer::new_using_handler`]: crate::server::HttpServer::new_using_handler
+/// [`Server::new_using_handler`]: crate::Server::new_using_handler
 ///
 /// # Examples
 ///
@@ -196,9 +196,9 @@ where
 
 /// Handle a [`RequestError`].
 ///
-/// See [`HttpServer::new_using_handler`].
+/// See [`Server::new_using_handler`].
 ///
-/// [`HttpServer::new_using_handler`]: crate::server::HttpServer::new_using_handler
+/// [`Server::new_using_handler`]: crate::Server::new_using_handler
 ///
 /// # Examples
 ///
@@ -214,7 +214,7 @@ where
 ///     err.response().with_body(OneshotBody::new(err.as_str()))
 /// });
 ///
-/// fn use_error_handler<E: heph_http::server::handler::HttpHandleError>(error_handler: E) {
+/// fn use_error_handler<E: heph_http::handler::HttpHandleError>(error_handler: E) {
 ///     // Do stuff with the error handler...
 /// #   _ = error_handler;
 /// }

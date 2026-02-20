@@ -43,14 +43,14 @@ use handler::{DefaultErrorHandler, Handler, HandlerSupervisor, HttpHandle, HttpH
 /// In additional to the usual design of spawning a single actor per incoming
 /// connection this also allows the use of request handlers.
 #[derive(Clone, Debug)]
-pub struct HttpServer<S, NA>(net::Server<S, NA>);
+pub struct Server<S, NA>(net::Server<S, NA>);
 
-impl<S, NA> HttpServer<S, NA> {
+impl<S, NA> Server<S, NA> {
     /// Create a new HTTP server.
     ///
     /// The actor needs to fully handle a single [`Connection`]. This allows the
     /// incoming requests in whatever way you see fit. Also see
-    /// [`HttpServer::new_using_handler`] for a HTTP server that only needs a
+    /// [`Server::new_using_handler`] for a HTTP server that only needs a
     /// function to handle a single request at a time, which is easier to use.
     ///
     /// Arguments:
@@ -63,14 +63,14 @@ impl<S, NA> HttpServer<S, NA> {
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
-    ) -> io::Result<HttpServer<S, HttpNewActor<NA>>>
+    ) -> io::Result<Server<S, HttpNewActor<NA>>>
     where
         S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
         NA: NewActor<Argument = Connection> + Clone + 'static,
         NA::RuntimeAccess: Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
     {
         let new_actor = HttpNewActor(new_actor);
-        net::Server::new(address, supervisor, new_actor, options).map(HttpServer)
+        net::Server::new(address, supervisor, new_actor, options).map(Server)
     }
 
     /// Create a new HTTP server that uses a single `Future` to handle incoming
@@ -83,11 +83,11 @@ impl<S, NA> HttpServer<S, NA> {
     /// Setting additional options, such as the error handler, can be done using
     /// the [impl block] below.
     ///
-    /// [impl block]: #impl-HttpServer<S,+Handler<H,+E,+RT>>
+    /// [impl block]: #impl-Server<S,+Handler<H,+E,+RT>>
     pub fn new_using_handler<H, RT>(
         address: SocketAddr,
         handler: H,
-    ) -> io::Result<HttpServer<HandlerSupervisor, Handler<H, DefaultErrorHandler, RT>>>
+    ) -> io::Result<Server<HandlerSupervisor, Handler<H, DefaultErrorHandler, RT>>>
     where
         H: HttpHandle + Clone + 'static,
         RT: Access
@@ -97,7 +97,7 @@ impl<S, NA> HttpServer<S, NA> {
     {
         let new_actor = Handler::new(handler, DefaultErrorHandler);
         let options = ActorOptions::default().with_inbox_size(InboxSize::ONE);
-        net::Server::new(address, HandlerSupervisor, new_actor, options).map(HttpServer)
+        net::Server::new(address, HandlerSupervisor, new_actor, options).map(Server)
     }
 
     /// Returns the address the server is bound to.
@@ -108,8 +108,8 @@ impl<S, NA> HttpServer<S, NA> {
 
 /// Set optional configuration options when using the HTTP handler.
 ///
-/// See [`HttpServer::new_using_handler`] for creation.
-impl<S, H, E, RT> HttpServer<S, Handler<H, E, RT>>
+/// See [`Server::new_using_handler`] for creation.
+impl<S, H, E, RT> Server<S, Handler<H, E, RT>>
 where
     H: HttpHandle + Clone + 'static,
     E: HttpHandleError + Clone + 'static,
@@ -117,31 +117,31 @@ where
     /// Change the supervisor for the actor that handles the connections.
     ///
     /// Defaults to [`HandlerSupervisor`].
-    pub fn with_supervisor<S2>(self, supervisor: S2) -> HttpServer<S2, Handler<H, E, RT>>
+    pub fn with_supervisor<S2>(self, supervisor: S2) -> Server<S2, Handler<H, E, RT>>
     where
         S2: Supervisor<Handler<H, E, RT>> + Clone + 'static,
     {
-        HttpServer(self.0.map_supervisor(|_| supervisor))
+        Server(self.0.map_supervisor(|_| supervisor))
     }
 
     /// Change the error handler.
     ///
     /// Defaults to [`DefaultErrorHandler`].
-    pub fn with_error_handler<E2>(self, error_handler: E2) -> HttpServer<S, Handler<H, E2, RT>>
+    pub fn with_error_handler<E2>(self, error_handler: E2) -> Server<S, Handler<H, E2, RT>>
     where
         E2: HttpHandleError + Clone + 'static,
         RT: Access + Spawn<S, Handler<H, E2, RT>, RT> + Clone + 'static,
     {
-        HttpServer(self.0.map_actor(|h| h.with_error_handler(error_handler)))
+        Server(self.0.map_actor(|h| h.with_error_handler(error_handler)))
     }
 
     /// Change the actor options for the actor that handles incoming connections.
     pub fn with_actor_options<F>(self, options: ActorOptions) -> Self {
-        HttpServer(self.0.map_actor_options(|_| options))
+        Server(self.0.map_actor_options(|_| options))
     }
 }
 
-impl<S, NA> NewActor for HttpServer<S, NA>
+impl<S, NA> NewActor for Server<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
@@ -162,7 +162,7 @@ where
     }
 }
 
-/// `NewActor` mapper used by [`HttpServer::new`].
+/// `NewActor` mapper used by [`Server::new`].
 ///
 /// This accepts an [`AsyncFd`] as arguments, sets TCP no delay on it and
 /// converts it into a [`Connection`]. Then it passes that connection on to the
@@ -445,7 +445,7 @@ impl Connection {
     /// # return;
     /// # #[allow(unreachable_code)]
     /// # {
-    /// let mut conn: Connection = /* From HttpServer. */
+    /// let mut conn: Connection = /* From Server. */
     /// # panic!("can't actually run example");
     ///
     /// // Reading a request returned this error.
