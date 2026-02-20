@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
-use crate::head::RequestHead;
+use crate::head::{Path, RequestHead};
 use crate::{Headers, Method, Version};
 
 /// HTTP request.
@@ -15,7 +15,7 @@ impl<B> Request<B> {
     /// Create a new request.
     pub const fn new(
         method: Method,
-        path: String,
+        path: Path,
         version: Version,
         headers: Headers,
         body: B,
@@ -63,32 +63,32 @@ impl<B> Request<B> {
 /// body. Use [`Request::with_body`] to add a body to the request.
 impl Request<EmptyBody> {
     /// Create a GET request.
-    pub const fn get(path: String) -> Request<EmptyBody> {
+    pub const fn get(path: Path) -> Request<EmptyBody> {
         Request::build_new(Method::Get, path)
     }
 
     /// Create a HEAD request.
-    pub const fn head(path: String) -> Request<EmptyBody> {
+    pub const fn head(path: Path) -> Request<EmptyBody> {
         Request::build_new(Method::Head, path)
     }
 
     /// Create a POST request.
-    pub const fn post(path: String) -> Request<EmptyBody> {
+    pub const fn post(path: Path) -> Request<EmptyBody> {
         Request::build_new(Method::Post, path)
     }
 
     /// Create a PUT request.
-    pub const fn put(path: String) -> Request<EmptyBody> {
+    pub const fn put(path: Path) -> Request<EmptyBody> {
         Request::build_new(Method::Put, path)
     }
 
     /// Create a DELETE request.
-    pub const fn delete(path: String) -> Request<EmptyBody> {
+    pub const fn delete(path: Path) -> Request<EmptyBody> {
         Request::build_new(Method::Delete, path)
     }
 
     /// Simple version of [`Request::new`] used by the build functions.
-    const fn build_new(method: Method, path: String) -> Request<EmptyBody> {
+    const fn build_new(method: Method, path: Path) -> Request<EmptyBody> {
         Request::new(method, path, Version::Http11, Headers::EMPTY, EmptyBody)
     }
 

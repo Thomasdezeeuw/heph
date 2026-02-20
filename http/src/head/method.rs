@@ -7,7 +7,7 @@ use crate::cmp_lower_case;
 
 /// HTTP method.
 ///
-/// RFC 9110 section 9.3
+/// RFC 9110 section 9.3.
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Method {

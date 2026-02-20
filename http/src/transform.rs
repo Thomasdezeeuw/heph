@@ -202,25 +202,25 @@ pub struct Path(pub String);
 /// This removes the path from the request, leaving an empty path in its place.
 impl<B> From<&mut Request<B>> for Path {
     fn from(request: &mut Request<B>) -> Path {
-        Path(take(&mut request.path))
+        Path(take(&mut request.path.0))
     }
 }
 
 impl<B> From<Request<B>> for Path {
     fn from(request: Request<B>) -> Path {
-        Path(request.split().0.path)
+        Path(request.split().0.path.0)
     }
 }
 
 impl<B> From<&Request<B>> for Cloned<Path> {
     fn from(request: &Request<B>) -> Cloned<Path> {
-        Cloned(Path(request.path.clone()))
+        Cloned(Path(request.path.0.clone()))
     }
 }
 
 impl<B> From<&mut Request<B>> for Cloned<Path> {
     fn from(request: &mut Request<B>) -> Cloned<Path> {
-        Cloned(Path(request.path.clone()))
+        Cloned(Path(request.path.0.clone()))
     }
 }
 

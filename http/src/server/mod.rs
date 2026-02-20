@@ -31,8 +31,8 @@ use httpdate::HttpDate;
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Request, Response,
-    StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Path, Request,
+    Response, StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
 };
 
 pub mod handler;
@@ -290,7 +290,7 @@ impl Connection {
                         return Err(RequestError::UnknownMethod);
                     };
                     self.last_method = Some(method);
-                    let path = request.path.unwrap().to_string();
+                    let path = Path(request.path.unwrap().to_string());
                     let version = map_version_byte(request.version.unwrap());
                     self.last_version = Some(version);
 

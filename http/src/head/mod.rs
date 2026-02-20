@@ -1,5 +1,7 @@
 //! Types for the HTTP message head.
 
+use std::ops::Deref;
+
 pub mod header;
 pub mod method;
 mod status_code;
@@ -20,7 +22,7 @@ use header::FromHeaderValue;
 #[derive(Clone, Debug)]
 pub struct RequestHead {
     method: Method,
-    pub(crate) path: String,
+    pub(crate) path: Path,
     version: Version,
     pub(crate) headers: Headers,
 }
@@ -29,7 +31,7 @@ impl RequestHead {
     /// Create a new request head.
     pub const fn new(
         method: Method,
-        path: String,
+        path: Path,
         version: Version,
         headers: Headers,
     ) -> RequestHead {
@@ -53,7 +55,7 @@ impl RequestHead {
 
     /// Returns the path of this request.
     pub fn path(&self) -> &str {
-        &self.path
+        &self.path.0
     }
 
     /// Returns the HTTP version of this request.
@@ -220,5 +222,27 @@ impl ResponseHead {
     /// Add a body to the response head creating a complete response.
     pub const fn add_body<B>(self, body: B) -> Response<B> {
         Response::from_head(self, body)
+    }
+}
+
+/// Request path.
+///
+/// RFC 9110 section 3.2.
+#[derive(Clone, Debug)]
+pub struct Path(pub(crate) String);
+
+// TODO: see if we can make this type more efficient than a String.
+
+impl Deref for Path {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<&str> for Path {
+    fn from(path: &str) -> Path {
+        Path(path.to_owned())
     }
 }

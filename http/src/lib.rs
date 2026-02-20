@@ -34,6 +34,8 @@ pub use body::Body;
 #[doc(no_inline)]
 pub use client::Client;
 #[doc(no_inline)]
+pub use head::Path;
+#[doc(no_inline)]
 pub use head::StatusCode;
 #[doc(no_inline)]
 pub use head::header::{Header, HeaderName, Headers};
