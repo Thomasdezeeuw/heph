@@ -15,7 +15,7 @@ use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{ServerError, TcpServer};
+use heph_rt::net::{Server, ServerError};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
 use heph_rt::{self as rt, Runtime};
@@ -46,8 +46,8 @@ fn main() -> Result<(), rt::Error> {
 
     let values = Arc::new(RwLock::new(HashMap::new()));
     let actor = actor_fn(conn_actor).map_arg(move |stream| (stream, values.clone()));
-    let address = "127.0.0.1:6379".parse().unwrap();
-    let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
+    let address: SocketAddr = "127.0.0.1:6379".parse().unwrap();
+    let server = Server::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;

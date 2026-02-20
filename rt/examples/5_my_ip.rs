@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{ServerError, TcpServer};
+use heph_rt::net::{Server, ServerError};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::{error, info};
@@ -27,8 +27,8 @@ fn main() -> Result<(), rt::Error> {
     // Create our TCP server. This server will create a new actor for each
     // incoming TCP connection.
     let actor = actor_fn(conn_actor);
-    let address = "127.0.0.1:7890".parse().unwrap();
-    let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
+    let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
+    let server = Server::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     // Like in example 1 we'll create our runtime and run our setup function.
