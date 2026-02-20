@@ -159,13 +159,14 @@ async fn http_actor<H: HttpHandle, E: HttpHandleError, RT>(
 /// use heph_http::{Request, Response};
 /// use heph_http::body::OneshotBody;
 /// use heph_http::server::{Body, RequestError};
+/// use heph_http::server::handler::HttpHandle;
 ///
 /// async fn http_handler(req: Request<Body<'_>>) -> Response<OneshotBody<&'static str>> {
 ///     Response::ok().with_body(OneshotBody::new("Hello, World!"))
 /// }
 ///
 /// use_handler(http_handler);
-/// fn use_handler<E: heph_http::server::handler::HttpHandle>(handler: E) {
+/// fn use_handler<H: HttpHandle>(handler: H) {
 ///     // Do stuff with the handler...
 /// #   _ = handler;
 /// }
@@ -208,13 +209,14 @@ where
 /// use heph_http::Response;
 /// use heph_http::body::OneshotBody;
 /// use heph_http::server::RequestError;
+/// use heph_http::server::handler::HttpHandleError;
 ///
 /// use_error_handler(|err: RequestError| async move {
 ///     log::error!("error reading request: {err}");
 ///     err.response().with_body(OneshotBody::new(err.as_str()))
 /// });
 ///
-/// fn use_error_handler<E: heph_http::handler::HttpHandleError>(error_handler: E) {
+/// fn use_error_handler<E: HttpHandleError>(error_handler: E) {
 ///     // Do stuff with the error handler...
 /// #   _ = error_handler;
 /// }
@@ -226,6 +228,7 @@ where
 /// use heph_http::Response;
 /// use heph_http::body::OneshotBody;
 /// use heph_http::server::RequestError;
+/// use heph_http::server::handler::HttpHandleError;
 ///
 /// use_error_handler(error_handler);
 ///
@@ -235,7 +238,7 @@ where
 /// #   todo!();
 /// }
 ///
-/// fn use_error_handler<E: heph_http::server::handler::HttpHandleError>(error_handler: E) {
+/// fn use_error_handler<E: HttpHandleError>(error_handler: E) {
 ///     // Do stuff with the error handler...
 /// #   _ = error_handler;
 /// }
