@@ -29,7 +29,6 @@ std-logger = { version = "0.5.3", default-features = false, features = ["log-pan
 path     = "../"
 features = ["test"]
 
-
 [dev-dependencies.heph-rt]
 path     = "../rt"
 features = ["test"]
