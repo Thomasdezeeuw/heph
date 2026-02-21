@@ -20,7 +20,7 @@ default = []
 test = ["heph/test"]
 
 [dependencies]
-a10               = { version = "0.4.1", default-features = false, features = ["nightly"], git = "https://github.com/Thomasdezeeuw/a10.git", rev = "df092a1dfc3d8db1b830841a27c2bfdc0a0eed6" }
+a10               = { version = "0.4.1", default-features = false, features = ["nightly"], git = "https://github.com/Thomasdezeeuw/a10.git", rev = "b3b1704a0bfeeaebd9ea3968d2ed4fe82af440ee" }
 heph              = { version = "0.5.0", path = "../", default-features = false }
 heph-inbox        = { version = "0.2.3", path = "../inbox", default-features = false }
 log               = { version = "0.4.21", default-features = false, features = ["kv_std"] }
