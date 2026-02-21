@@ -68,7 +68,6 @@ pub(crate) use private::PrivateBody;
 
 /// An empty body.
 #[derive(Copy, Clone, Debug)]
-#[non_exhaustive]
 pub struct EmptyBody;
 
 impl Body for EmptyBody {
