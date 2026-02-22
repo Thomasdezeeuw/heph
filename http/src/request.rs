@@ -14,6 +14,10 @@ pub struct Request<B> {
 
 impl<B> Request<B> {
     /// Create a new request.
+    ///
+    /// See the [builder pattern implementation] below for an easier to use API.
+    ///
+    /// [builder pattern implementation]: #impl-Request<EmptyBody>
     pub const fn new(
         method: Method,
         path: Path,
