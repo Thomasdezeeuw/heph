@@ -112,8 +112,7 @@ where
 
 impl<B: Buf> Body for OneshotBody<B> {
     fn length(&self) -> BodyLength {
-        // SAFETY: only using the length, nothing unsafe about that.
-        BodyLength::Known(unsafe { self.bytes.parts().1 as usize })
+        BodyLength::Known(self.bytes.len())
     }
 }
 
