@@ -92,7 +92,7 @@ impl Headers {
     /// This doesn't check for duplicate headers, it just adds it to the list of
     /// headers. This means the list can contain two headers with the same name.
     /// If you don't want duplicate headers you can use (the more expansive)
-    /// [`Headers::insert`] method.
+    /// [`Headers::insert_header`] method.
     pub fn append_header(&mut self, header: Header<'static, '_>) {
         self.append(header.name, header.value);
     }
@@ -103,11 +103,22 @@ impl Headers {
         self.append(header.name, header.value);
     }
 
-    fn append(&mut self, name: HeaderName<'static>, value: &[u8]) {
+    fn append<V>(
+        &mut self,
+        name: HeaderName<'static>,
+        value: V,
+    ) -> Result<(), <V as HeaderValue>::Error>
+    where
+        V: HeaderValue,
+    {
         let start = self.values.len();
-        self.values.extend_from_slice(value);
+        if let Err(err) = value.append(&mut self.values) {
+            self.values.truncate(start);
+            return Err(err);
+        }
         let end = self.values.len();
         self.parts.push(HeaderPart { name, start, end });
+        Ok(())
     }
 
     /// Get the first header with `name`, if any.
