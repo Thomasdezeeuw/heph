@@ -2,6 +2,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
+use crate::head::header::{FromHeaderValue, HeaderName};
 use crate::head::{Path, RequestHead};
 use crate::{Headers, Method, Version};
 
@@ -26,6 +27,87 @@ impl<B> Request<B> {
     /// Create a new request from a [`RequestHead`] and a `body`.
     pub const fn from_head(head: RequestHead, body: B) -> Request<B> {
         Request { head, body }
+    }
+
+    /// Returns the HTTP method of this request.
+    pub const fn method(&self) -> Method {
+        self.head.method()
+    }
+
+    /// Returns a mutable reference to the HTTP method of this request.
+    pub const fn method_mut(&mut self) -> &mut Method {
+        self.head.method_mut()
+    }
+
+    /// Returns the path of this request.
+    pub fn path(&self) -> &str {
+        self.head.path()
+    }
+
+    /// Returns a mutable reference to the path of this request.
+    pub fn path_mut(&mut self) -> &mut Path {
+        self.head.path_mut()
+    }
+
+    /// Returns the HTTP version of this request.
+    ///
+    /// # Notes
+    ///
+    /// Requests from the HTTP server will return the highest version it
+    /// understands, e.g. if a client used HTTP/1.2 (which doesn't exists) the
+    /// version would be set to HTTP/1.1 (the highest version this crate
+    /// understands) per RFC 9110 section 6.2.
+    pub const fn version(&self) -> Version {
+        self.head.version()
+    }
+
+    /// Returns a mutable reference to the HTTP version of this request.
+    pub const fn version_mut(&mut self) -> &mut Version {
+        self.head.version_mut()
+    }
+
+    /// Returns the headers.
+    pub const fn headers(&self) -> &Headers {
+        self.head.headers()
+    }
+
+    /// Returns mutable access to the headers.
+    pub const fn headers_mut(&mut self) -> &mut Headers {
+        self.head.headers_mut()
+    }
+
+    /// Get the header’s value with `name`, if any.
+    ///
+    /// See [`Headers::get_value`] for more information.
+    pub fn header<'a, T>(&'a self, name: &HeaderName<'_>) -> Result<Option<T>, T::Err>
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.head.header(name)
+    }
+
+    /// Get the header’s value with `name` or return `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`. For more control over
+    /// the error handling see [`RequestHead::header`].
+    pub fn header_or<'a, T>(&'a self, name: &HeaderName<'_>, default: T) -> T
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.head.header_or(name, default)
+    }
+
+    /// Get the header’s value with `name` or returns the result of `default`.
+    ///
+    /// Same as [`RequestHead::header_or`] but uses a function to create the
+    /// default value.
+    pub fn header_or_else<'a, F, T>(&'a self, name: &HeaderName<'_>, default: F) -> T
+    where
+        T: FromHeaderValue<'a>,
+        F: FnOnce() -> T,
+    {
+        self.head.header_or_else(name, default)
     }
 
     /// The request body.
