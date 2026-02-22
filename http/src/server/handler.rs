@@ -135,7 +135,12 @@ async fn http_actor<H: HttpHandle, E: HttpHandleError, RT>(
             Ok(response) => conn.respond_with(response).await?,
             Err(err) => {
                 let should_close = err.should_close();
-                let response = error_handler.handle_err(err).await;
+                let mut response = error_handler.handle_err(err).await;
+                if should_close {
+                    response
+                        .headers_mut()
+                        .insert_header(Header::new(HeaderName::CONNECTION, b"close"));
+                }
                 conn.respond_with(response).await?;
                 if should_close {
                     return Ok(());
