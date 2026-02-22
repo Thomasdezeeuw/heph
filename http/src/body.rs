@@ -254,10 +254,13 @@ where
 /// #![feature(never_type)]
 /// use heph_http::body::AnyBody;
 ///
-/// # type MyChunkedBody = ();
+/// # type MyChunkedStream = ();
 /// /// Using a static string for the oneshot body and `MyChunkedStream` for a
 /// /// chunked stream.
 /// type MyBody = AnyBody<&'static str, !, MyChunkedStream>;
+///
+/// # const fn is_body<T: heph_http::body::Body>() {}
+/// # const _TEST: () = is_body::<MyBody>();
 /// ```
 #[non_exhaustive]
 #[derive(Debug)]
