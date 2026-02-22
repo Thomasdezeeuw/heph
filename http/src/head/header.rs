@@ -103,7 +103,11 @@ impl Headers {
         self.append(header.name, header.value);
     }
 
-    fn append<V>(
+    /// Append a new header.
+    ///
+    /// This works the same as [`Headers::append_header`], but separates the
+    /// name and value.
+    pub fn append<V>(
         &mut self,
         name: HeaderName<'static>,
         value: V,
