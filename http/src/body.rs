@@ -25,6 +25,8 @@ const LAST_CHUNK: &[u8] = b"0\r\n\r\n";
 /// * [`StreamingBody`]: body that is streaming, with a known length.
 /// * [`ChunkedBody`]: body that is streaming, with a *un*known length. This
 ///   uses HTTP chunked encoding to transfer the body.
+///
+/// Alternatively the [`AnyBody`] can be used to support all body types in one.
 pub trait Body: PrivateBody {
     /// Length of the body, or the body will be chunked.
     fn length(&self) -> BodyLength;
@@ -240,5 +242,106 @@ where
             _ = stream.send_all(LAST_CHUNK).await?;
             Ok(http_head)
         }
+    }
+}
+
+/// Any kind of body.
+///
+/// Wraps all other variants in an enum.
+///
+/// When a variant is not used, you can use the never type (`!`) to mark the
+/// variant as unusable (safing some memory and branches in the code).
+///
+/// # Examples
+///
+/// Using this never type (`!`) to remove unused variants.
+///
+/// ```
+/// #![feature(never_type)]
+/// use heph_http::body::AnyBody;
+///
+/// # type MyChunkedBody = ();
+/// /// Using a static string for the oneshot body and `MyChunkedStream` for a
+/// /// chunked stream.
+/// type MyBody = AnyBody<&'static str, !, MyChunkedStream>;
+/// ```
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum AnyBody<B = !, S = !, C = !> {
+    /// [`EmptyBody`].
+    Empty,
+    /// [`OneshotBody`].
+    Oneshot(OneshotBody<B>),
+    /// [`StreamingBody`].
+    Streaming(StreamingBody<S>),
+    /// [`ChunkedBody`].
+    Chunked(ChunkedBody<C>),
+}
+
+impl<B, S, C> AnyBody<B, S, C> {
+    /// Create a new empty body, see [`EmptyBody`].
+    pub const fn empty() -> AnyBody<B, S, C> {
+        AnyBody::Empty
+    }
+
+    /// Create a new oneshot body, see [`OneshotBody`].
+    pub const fn oneshot(buf: B) -> AnyBody<B, S, C>
+    where
+        B: Buf,
+    {
+        AnyBody::Oneshot(OneshotBody::new(buf))
+    }
+
+    /// Create a streaming body, see [`StreamingBody`].
+    pub const fn streaming(length: usize, stream: S) -> AnyBody<B, S, C>
+    where
+        S: AsyncIterator + 'static,
+        S::Item: Buf,
+    {
+        AnyBody::Streaming(StreamingBody::new(length, stream))
+    }
+
+    /// Create a chunked body, see [`ChunkedBody`].
+    pub const fn chuncked<SB>(stream: C) -> AnyBody<B, S, C>
+    where
+        C: AsyncIterator + 'static,
+        C::Item: Buf,
+    {
+        AnyBody::Chunked(ChunkedBody::new(stream))
+    }
+}
+
+impl<B, S, C> From<EmptyBody> for AnyBody<B, S, C> {
+    fn from(EmptyBody: EmptyBody) -> AnyBody<B, S, C> {
+        AnyBody::empty()
+    }
+}
+
+impl<B, S, C> From<OneshotBody<B>> for AnyBody<B, S, C>
+where
+    B: Buf,
+{
+    fn from(body: OneshotBody<B>) -> AnyBody<B, S, C> {
+        AnyBody::Oneshot(body)
+    }
+}
+
+impl<B, S, C> From<StreamingBody<S>> for AnyBody<B, S, C>
+where
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
+{
+    fn from(body: StreamingBody<S>) -> AnyBody<B, S, C> {
+        AnyBody::Streaming(body)
+    }
+}
+
+impl<B, S, C> From<ChunkedBody<C>> for AnyBody<B, S, C>
+where
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
+{
+    fn from(body: ChunkedBody<C>) -> AnyBody<B, S, C> {
+        AnyBody::Chunked(body)
     }
 }
