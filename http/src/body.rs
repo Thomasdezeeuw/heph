@@ -193,38 +193,38 @@ where
 
 /// Streaming body with an unknown length. Send in multiple chunks.
 #[derive(Debug)]
-pub struct ChunkedBody<S> {
-    body: S,
+pub struct ChunkedBody<C> {
+    chunks: C,
 }
 
-impl<S> ChunkedBody<S>
+impl<C> ChunkedBody<C>
 where
-    S: AsyncIterator + 'static,
-    S::Item: Buf,
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a unknown length.
     ///
-    /// If the total length of `stream` is known prefer to use
+    /// If the total length of all chunks is known prefer to use
     /// [`StreamingBody`].
-    pub const fn new(stream: S) -> ChunkedBody<S> {
-        ChunkedBody { body: stream }
+    pub const fn new(chunks: C) -> ChunkedBody<C> {
+        ChunkedBody { chunks }
     }
 }
 
-impl<S> Body for ChunkedBody<S>
+impl<C> Body for ChunkedBody<C>
 where
-    S: AsyncIterator + 'static,
-    S::Item: Buf,
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
 {
     fn length(&self) -> BodyLength {
         BodyLength::Chunked
     }
 }
 
-impl<S> PrivateBody for ChunkedBody<S>
+impl<C> PrivateBody for ChunkedBody<C>
 where
-    S: AsyncIterator + 'static,
-    S::Item: Buf,
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
 {
     type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
 
@@ -234,9 +234,9 @@ where
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
         async move {
-            let mut body = pin!(self.body);
+            let mut chunks = pin!(self.chunks);
             let http_head = stream.send_all(http_head).extract().await?;
-            while let Some(chunk) = next(&mut body).await {
+            while let Some(chunk) = next(&mut chunks).await {
                 _ = stream.send_all(chunk).await?;
             }
             _ = stream.send_all(LAST_CHUNK).await?;
