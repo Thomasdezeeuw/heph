@@ -142,10 +142,10 @@ pub struct StreamingBody<S> {
     body: S,
 }
 
-impl<S, B> StreamingBody<S>
+impl<S> StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a known length.
     ///
@@ -158,20 +158,20 @@ where
     }
 }
 
-impl<S, B> Body for StreamingBody<S>
+impl<S> Body for StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     fn length(&self) -> BodyLength {
         BodyLength::Known(self.length)
     }
 }
 
-impl<S, B> PrivateBody for StreamingBody<S>
+impl<S> PrivateBody for StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
 
@@ -197,10 +197,10 @@ pub struct ChunkedBody<S> {
     body: S,
 }
 
-impl<S, B> ChunkedBody<S>
+impl<S> ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a unknown length.
     ///
@@ -211,20 +211,20 @@ where
     }
 }
 
-impl<S, B> Body for ChunkedBody<S>
+impl<S> Body for ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     fn length(&self) -> BodyLength {
         BodyLength::Chunked
     }
 }
 
-impl<S, B> PrivateBody for ChunkedBody<S>
+impl<S> PrivateBody for ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + 'static,
-    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
 {
     type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
 
