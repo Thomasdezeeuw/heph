@@ -1,4 +1,3 @@
-use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
@@ -7,6 +6,7 @@ use crate::head::header::FromHeaderValue;
 use crate::{Header, HeaderName, Headers, StatusCode, Version};
 
 /// HTTP response.
+#[derive(Debug)]
 pub struct Response<B> {
     head: ResponseHead,
     body: B,
@@ -272,14 +272,5 @@ impl<B> Deref for Response<B> {
 impl<B> DerefMut for Response<B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.head
-    }
-}
-
-#[allow(clippy::missing_fields_in_debug)]
-impl<B> fmt::Debug for Response<B> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Response")
-            .field("head", &self.head)
-            .finish()
     }
 }
