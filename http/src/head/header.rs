@@ -1074,6 +1074,14 @@ impl<'a> FromHeaderValue<'a> for &'a str {
     }
 }
 
+impl<'a> FromHeaderValue<'a> for &'a [u8] {
+    type Err = !;
+
+    fn from_bytes(value: &'a [u8]) -> Result<Self, Self::Err> {
+        Ok(value)
+    }
+}
+
 /// Error returned by the [`FromHeaderValue`] implementation for [`SystemTime`].
 #[derive(Debug)]
 pub struct ParseTimeError;
