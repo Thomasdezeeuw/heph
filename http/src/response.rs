@@ -253,8 +253,8 @@ impl Response<EmptyBody> {
         Response::build_new(StatusCode::GATEWAY_TIMEOUT)
     }
 
-    /// Simple version of [`Response::new`] used by the build functions.
-    pub(crate) const fn build_new(status: StatusCode) -> Response<EmptyBody> {
+    /// Simple version of [`Response::new`] used to build a new response.
+    pub const fn build_new(status: StatusCode) -> Response<EmptyBody> {
         Response::new(Version::Http11, status, Headers::EMPTY, EmptyBody)
     }
 
