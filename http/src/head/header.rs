@@ -1067,3 +1067,43 @@ impl FromHeaderValue<'_> for SystemTime {
         }
     }
 }
+
+/// Header value representation of a type.
+pub trait HeaderValue: private::HeaderValue<Error = <Self as HeaderValue>::Error> {
+    /// Error formatting the value.
+    type Error;
+}
+
+mod private {
+    pub trait HeaderValue {
+        type Error;
+
+        /// Append the value to `buf`.
+        fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error>;
+    }
+}
+
+impl HeaderValue for &[u8] {
+    type Error = !;
+}
+
+impl private::HeaderValue for &[u8] {
+    type Error = !;
+
+    fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+        buf.extend_from_slice(self);
+        Ok(())
+    }
+}
+
+impl HeaderValue for &str {
+    type Error = !;
+}
+
+impl private::HeaderValue for &str {
+    type Error = !;
+
+    fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+        self.as_bytes().append(buf)
+    }
+}
