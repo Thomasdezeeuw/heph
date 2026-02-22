@@ -339,3 +339,47 @@ where
         AnyBody::Chunked(body)
     }
 }
+
+impl<B, S, C> Body for AnyBody<B, S, C>
+where
+    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
+{
+    fn length(&self) -> BodyLength {
+        match self {
+            AnyBody::Empty => EmptyBody.length(),
+            AnyBody::Oneshot(body) => body.length(),
+            AnyBody::Streaming(body) => body.length(),
+            AnyBody::Chunked(body) => body.length(),
+        }
+    }
+}
+
+impl<B, S, C> PrivateBody for AnyBody<B, S, C>
+where
+    B: Buf,
+    S: AsyncIterator + 'static,
+    S::Item: Buf,
+    C: AsyncIterator + 'static,
+    C::Item: Buf,
+{
+    type WriteFuture<'fd> = impl Future<Output = io::Result<Vec<u8>>> + 'fd;
+
+    fn write_message<'fd>(
+        self,
+        fd: &'fd mut AsyncFd,
+        http_head: Vec<u8>,
+    ) -> Self::WriteFuture<'fd> {
+        async move {
+            match self {
+                AnyBody::Empty => EmptyBody.write_message(fd, http_head).await,
+                AnyBody::Oneshot(body) => body.write_message(fd, http_head).await,
+                AnyBody::Streaming(body) => body.write_message(fd, http_head).await,
+                AnyBody::Chunked(body) => body.write_message(fd, http_head).await,
+            }
+        }
+    }
+}
