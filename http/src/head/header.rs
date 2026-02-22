@@ -1138,3 +1138,39 @@ impl private::HeaderValue for &str {
         self.as_bytes().append(buf)
     }
 }
+
+/// Comma Separated Value (CSV) header value.
+///
+/// Header value that turns a slice such as `[1, 2, 3]` into a header value
+/// formatted as `1, 2, 3`.
+#[derive(Debug)]
+pub struct Csv<'a, T>(&'a [T]);
+
+impl<'a, T: fmt::Display> Csv<'a, T> {
+    /// Create a new `Csv` formatter.
+    pub const fn new(values: &'a [T]) -> Csv<'a, T> {
+        Csv(values)
+    }
+}
+
+impl<'a, T: fmt::Display> HeaderValue for Csv<'a, T> {
+    type Error = fmt::Error;
+}
+
+impl<'a, T: fmt::Display> private::HeaderValue for Csv<'a, T> {
+    type Error = fmt::Error;
+
+    fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+        use std::io::Write;
+        let mut first = true;
+        for value in self.0 {
+            if first {
+                first = false;
+            } else {
+                buf.extend_from_slice(b", ");
+            }
+            write!(buf, "{value}").map_err(|_| fmt::Error)?;
+        }
+        Ok(())
+    }
+}
