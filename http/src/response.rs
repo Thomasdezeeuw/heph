@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
 use crate::head::ResponseHead;
-use crate::head::header::{Csv, FromHeaderValue};
+use crate::head::header::{Csv, FromHeaderValue, HeaderValue};
 use crate::{HeaderName, Headers, Method, StatusCode, Version};
 
 /// HTTP response.
@@ -256,6 +256,21 @@ impl Response<EmptyBody> {
     /// Simple version of [`Response::new`] used to build a new response.
     pub const fn build_new(status: StatusCode) -> Response<EmptyBody> {
         Response::new(Version::Http11, status, Headers::EMPTY, EmptyBody)
+    }
+
+    /// Append a new header.
+    ///
+    /// See [`Headers::append`].
+    pub fn with_header<V>(
+        mut self,
+        name: HeaderName<'static>,
+        value: V,
+    ) -> Result<Self, <V as HeaderValue>::Error>
+    where
+        V: HeaderValue,
+    {
+        self.head.headers_mut().append(name, value)?;
+        Ok(self)
     }
 
     /// Add a body to the response.
