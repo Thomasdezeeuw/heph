@@ -29,7 +29,7 @@ use heph_rt::{Access, net};
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
-use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
+use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
     BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Path, Request,
     Response, StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
@@ -1087,7 +1087,7 @@ impl RequestError {
         if self.should_close() {
             response
                 .headers_mut()
-                .append_header(Header::new(HeaderName::CONNECTION, b"close"));
+                .append(HeaderName::CONNECTION, "close");
         }
         response
     }

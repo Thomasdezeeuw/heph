@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::body::EmptyBody;
 use crate::head::ResponseHead;
 use crate::head::header::{Csv, FromHeaderValue};
-use crate::{Header, HeaderName, Headers, Method, StatusCode, Version};
+use crate::{HeaderName, Headers, Method, StatusCode, Version};
 
 /// HTTP response.
 #[derive(Debug)]
@@ -153,7 +153,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append(HeaderName::LOCATION, location_uri);
         response
     }
 
@@ -165,7 +165,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append(HeaderName::LOCATION, location_uri);
         response
     }
 
@@ -177,7 +177,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append(HeaderName::LOCATION, location_uri);
         response
     }
 

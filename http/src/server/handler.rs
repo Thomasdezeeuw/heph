@@ -16,7 +16,7 @@ use heph_rt::fd::AsyncFd;
 
 use crate::body::OneshotBody;
 use crate::server::{Body, Connection, RequestError};
-use crate::{Header, HeaderName, Request, Response, set_nodelay};
+use crate::{HeaderName, Request, Response, set_nodelay};
 
 /// [`Supervisor`] for [`Handler`].
 #[derive(Copy, Clone, Debug)]
@@ -139,7 +139,7 @@ async fn http_actor<H: HttpHandle, E: HttpHandleError, RT>(
                 if should_close {
                     response
                         .headers_mut()
-                        .insert_header(Header::new(HeaderName::CONNECTION, b"close"));
+                        .insert(HeaderName::CONNECTION, "close");
                 }
                 conn.respond_with(response).await?;
                 if should_close {
@@ -286,10 +286,9 @@ impl HttpHandleError for DefaultErrorHandler {
 
     fn handle_err(&mut self, err: RequestError) -> Self::Future {
         let mut response = err.response();
-        response.headers_mut().append_header(Header::new(
-            HeaderName::CONTENT_TYPE,
-            b"text/plain; charset=utf-8",
-        ));
+        response
+            .headers_mut()
+            .append(HeaderName::CONTENT_TYPE, "text/plain; charset=utf-8");
         future::ready(response.with_body(OneshotBody::new(err.as_str())))
     }
 }
