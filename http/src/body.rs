@@ -54,15 +54,15 @@ mod private {
     /// [`Body`]: super::Body
     pub trait PrivateBody {
         /// [`Future`] behind [`PrivateBody::write_message`].
-        type WriteFuture<'stream>: Future<Output = io::Result<Vec<u8>>> + 'stream;
+        type WriteFuture<'fd>: Future<Output = io::Result<Vec<u8>>> + 'fd;
 
-        /// Write an HTTP message to `stream` using the `http_head` as head.
-        /// Expects the `http_head` buffer to be returned.
-        fn write_message<'stream>(
+        /// Write an HTTP message to `fd` using the `http_head` as head. Expects
+        /// the `http_head` buffer to be returned.
+        fn write_message<'fd>(
             self,
-            stream: &'stream mut AsyncFd,
+            fd: &'fd mut AsyncFd,
             http_head: Vec<u8>,
-        ) -> Self::WriteFuture<'stream>;
+        ) -> Self::WriteFuture<'fd>;
     }
 }
 
@@ -97,10 +97,7 @@ pub struct OneshotBody<B> {
     bytes: B,
 }
 
-impl<B> OneshotBody<B>
-where
-    B: Buf,
-{
+impl<B: Buf> OneshotBody<B> {
     /// Create a new one-shot body.
     pub const fn new(body: B) -> OneshotBody<B> {
         OneshotBody { bytes: body }
@@ -139,7 +136,7 @@ impl<B: Buf> PrivateBody for OneshotBody<B> {
 #[derive(Debug)]
 pub struct StreamingBody<S> {
     length: usize,
-    body: S,
+    stream: S,
 }
 
 impl<S> StreamingBody<S>
@@ -151,10 +148,7 @@ where
     ///
     /// `length` must be the total body length in bytes.
     pub const fn new(length: usize, stream: S) -> StreamingBody<S> {
-        StreamingBody {
-            length,
-            body: stream,
-        }
+        StreamingBody { length, stream }
     }
 }
 
@@ -173,18 +167,18 @@ where
     S: AsyncIterator + 'static,
     S::Item: Buf,
 {
-    type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
+    type WriteFuture<'fd> = impl Future<Output = io::Result<Vec<u8>>> + 'fd;
 
-    fn write_message<'stream>(
+    fn write_message<'fd>(
         self,
-        stream: &'stream mut AsyncFd,
+        fd: &'fd mut AsyncFd,
         http_head: Vec<u8>,
-    ) -> Self::WriteFuture<'stream> {
+    ) -> Self::WriteFuture<'fd> {
         async move {
-            let mut body = pin!(self.body);
-            let http_head = stream.send_all(http_head).extract().await?;
-            while let Some(chunk) = next(&mut body).await {
-                _ = stream.send_all(chunk).await?;
+            let mut stream = pin!(self.stream);
+            let http_head = fd.send_all(http_head).extract().await?;
+            while let Some(bytes) = next(&mut stream).await {
+                _ = fd.send_all(bytes).await?;
             }
             Ok(http_head)
         }
@@ -226,20 +220,20 @@ where
     C: AsyncIterator + 'static,
     C::Item: Buf,
 {
-    type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
+    type WriteFuture<'fd> = impl Future<Output = io::Result<Vec<u8>>> + 'fd;
 
-    fn write_message<'stream>(
+    fn write_message<'fd>(
         self,
-        stream: &'stream mut AsyncFd,
+        fd: &'fd mut AsyncFd,
         http_head: Vec<u8>,
-    ) -> Self::WriteFuture<'stream> {
+    ) -> Self::WriteFuture<'fd> {
         async move {
             let mut chunks = pin!(self.chunks);
-            let http_head = stream.send_all(http_head).extract().await?;
+            let http_head = fd.send_all(http_head).extract().await?;
             while let Some(chunk) = next(&mut chunks).await {
-                _ = stream.send_all(chunk).await?;
+                _ = fd.send_all(chunk).await?;
             }
-            _ = stream.send_all(LAST_CHUNK).await?;
+            _ = fd.send_all(LAST_CHUNK).await?;
             Ok(http_head)
         }
     }
@@ -302,12 +296,12 @@ impl<B, S, C> AnyBody<B, S, C> {
     }
 
     /// Create a chunked body, see [`ChunkedBody`].
-    pub const fn chuncked<SB>(stream: C) -> AnyBody<B, S, C>
+    pub const fn chuncked<SB>(chunks: C) -> AnyBody<B, S, C>
     where
         C: AsyncIterator + 'static,
         C::Item: Buf,
     {
-        AnyBody::Chunked(ChunkedBody::new(stream))
+        AnyBody::Chunked(ChunkedBody::new(chunks))
     }
 }
 
