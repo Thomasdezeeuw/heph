@@ -195,6 +195,35 @@ impl Headers {
         None
     }
 
+    /// Get the header’s value with `name` or return `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`.
+    pub fn get_value_or<'a, T>(&'a self, name: &HeaderName<'_>, default: T) -> T
+    where
+        T: FromHeaderValue<'a>,
+    {
+        match self.get_value(name) {
+            Ok(Some(value)) => value,
+            _ => default,
+        }
+    }
+
+    /// Get the header’s value with `name` or returns the result of `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`.
+    pub fn get_value_or_else<'a, T, F>(&'a self, name: &HeaderName<'_>, default: F) -> T
+    where
+        T: FromHeaderValue<'a>,
+        F: FnOnce() -> T,
+    {
+        match self.get_value(name) {
+            Ok(Some(value)) => value,
+            _ => default(),
+        }
+    }
+
     /// Remove the first header with `name`.
     pub fn remove(&mut self, name: &HeaderName<'_>) {
         if let Some(idx) = self.parts.iter().position(move |part| part.name == *name) {

@@ -109,10 +109,7 @@ impl RequestHead {
     where
         T: FromHeaderValue<'a>,
     {
-        match self.header(name) {
-            Ok(Some(value)) => value,
-            _ => default,
-        }
+        self.headers.get_value_or(name, default)
     }
 
     /// Get the header’s value with `name` or returns the result of `default`.
@@ -124,10 +121,7 @@ impl RequestHead {
         T: FromHeaderValue<'a>,
         F: FnOnce() -> T,
     {
-        match self.header(name) {
-            Ok(Some(value)) => value,
-            _ => default(),
-        }
+        self.headers.get_value_or_else(name, default)
     }
 
     /// Add a body to the request head creating a complete request.
@@ -203,10 +197,7 @@ impl ResponseHead {
     where
         T: FromHeaderValue<'a>,
     {
-        match self.header(name) {
-            Ok(Some(value)) => value,
-            _ => default,
-        }
+        self.headers.get_value_or(name, default)
     }
 
     /// Get the header’s value with `name` or returns the result of `default`.
@@ -218,10 +209,7 @@ impl ResponseHead {
         T: FromHeaderValue<'a>,
         F: FnOnce() -> T,
     {
-        match self.header(name) {
-            Ok(Some(value)) => value,
-            _ => default(),
-        }
+        self.headers.get_value_or_else(name, default)
     }
 
     /// Add a body to the response head creating a complete response.
