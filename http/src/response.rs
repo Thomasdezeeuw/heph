@@ -209,6 +209,8 @@ impl Response<EmptyBody> {
     /// Create a 405 Method Not Allow response.
     pub fn method_not_allowed(allowed: &[Method]) -> Response<EmptyBody> {
         let mut response = Response::build_new(StatusCode::METHOD_NOT_ALLOWED);
+        // SAFETY: Method never returns an error formatting, so it's safe to
+        // unwrap.
         response
             .headers_mut()
             .append(HeaderName::ALLOW, Csv::new(allowed))
