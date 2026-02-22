@@ -1087,7 +1087,7 @@ impl RequestError {
         if self.should_close() {
             response
                 .headers_mut()
-                .append(Header::new(HeaderName::CONNECTION, b"close"));
+                .append_header(Header::new(HeaderName::CONNECTION, b"close"));
         }
         response
     }

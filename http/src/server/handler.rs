@@ -281,7 +281,7 @@ impl HttpHandleError for DefaultErrorHandler {
 
     fn handle_err(&mut self, err: RequestError) -> Self::Future {
         let mut response = err.response();
-        response.headers_mut().append(Header::new(
+        response.headers_mut().append_header(Header::new(
             HeaderName::CONTENT_TYPE,
             b"text/plain; charset=utf-8",
         ));

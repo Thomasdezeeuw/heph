@@ -153,7 +153,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
         response
     }
 
@@ -165,7 +165,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
         response
     }
 
@@ -177,7 +177,7 @@ impl Response<EmptyBody> {
         response
             .head
             .headers_mut()
-            .append(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
+            .append_header(Header::new(HeaderName::LOCATION, location_uri.as_bytes()));
         response
     }
 

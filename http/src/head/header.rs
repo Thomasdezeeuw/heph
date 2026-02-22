@@ -62,7 +62,7 @@ impl Headers {
             let name = HeaderName::from_str(header.name);
             let value = header.value;
             f(&name, value)?;
-            headers._append(name, value);
+            headers.append(name, value);
         }
         Ok(headers)
     }
@@ -93,17 +93,17 @@ impl Headers {
     /// headers. This means the list can contain two headers with the same name.
     /// If you don't want duplicate headers you can use (the more expansive)
     /// [`Headers::insert`] method.
-    pub fn append(&mut self, header: Header<'static, '_>) {
-        self._append(header.name, header.value);
+    pub fn append_header(&mut self, header: Header<'static, '_>) {
+        self.append(header.name, header.value);
     }
 
     /// Insert `header`, removing all existing headers with the same name.
-    pub fn insert(&mut self, header: Header<'static, '_>) {
+    pub fn insert_header(&mut self, header: Header<'static, '_>) {
         self.remove_all(&header.name);
-        self._append(header.name, header.value);
+        self.append(header.name, header.value);
     }
 
-    fn _append(&mut self, name: HeaderName<'static>, value: &[u8]) {
+    fn append(&mut self, name: HeaderName<'static>, value: &[u8]) {
         let start = self.values.len();
         self.values.extend_from_slice(value);
         let end = self.values.len();
@@ -230,7 +230,7 @@ impl<const N: usize> From<[Header<'static, '_>; N]> for Headers {
             parts: Vec::with_capacity(raw_headers.len()),
         };
         for header in raw_headers {
-            headers._append(header.name.clone(), header.value);
+            headers.append(header.name.clone(), header.value);
         }
         headers
     }
@@ -244,7 +244,7 @@ impl From<&[Header<'static, '_>]> for Headers {
             parts: Vec::with_capacity(raw_headers.len()),
         };
         for header in raw_headers {
-            headers._append(header.name.clone(), header.value);
+            headers.append(header.name.clone(), header.value);
         }
         headers
     }
@@ -272,7 +272,7 @@ impl<'v> Extend<Header<'static, 'v>> for Headers {
         self.values.reserve(iter_len * 10);
         self.parts.reserve(iter_len);
         for header in iter {
-            self._append(header.name, header.value);
+            self.append(header.name, header.value);
         }
     }
 }
