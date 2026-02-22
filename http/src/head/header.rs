@@ -125,6 +125,22 @@ impl Headers {
         Ok(())
     }
 
+    /// Insert a new header.
+    ///
+    /// This works the same as [`Headers::insert_header`], but separates the
+    /// name and value.
+    pub fn insert<V>(
+        &mut self,
+        name: HeaderName<'static>,
+        value: V,
+    ) -> Result<(), <V as HeaderValue>::Error>
+    where
+        V: HeaderValue,
+    {
+        self.remove_all(&name);
+        self.append(name, value)
+    }
+
     /// Get the first header with `name`, if any.
     ///
     /// # Notes
