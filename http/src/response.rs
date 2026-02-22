@@ -261,7 +261,18 @@ impl Response<EmptyBody> {
     /// Append a new header.
     ///
     /// See [`Headers::append`].
-    pub fn with_header<V>(
+    pub fn with_header<V>(mut self, name: HeaderName<'static>, value: V) -> Self
+    where
+        V: HeaderValue<Error = !>,
+    {
+        let Ok(()) = self.head.headers_mut().append(name, value);
+        self
+    }
+
+    /// Append a new header.
+    ///
+    /// See [`Headers::append`].
+    pub fn try_with_header<V>(
         mut self,
         name: HeaderName<'static>,
         value: V,
