@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
 use crate::head::ResponseHead;
+use crate::head::header::FromHeaderValue;
 use crate::{Header, HeaderName, Headers, StatusCode, Version};
 
 /// HTTP response.
@@ -29,6 +30,70 @@ impl<B> Response<B> {
     /// Create a new response from a [`ResponseHead`] and a `body`.
     pub const fn from_head(head: ResponseHead, body: B) -> Response<B> {
         Response { head, body }
+    }
+
+    /// Returns the HTTP version of this response.
+    pub const fn version(&self) -> Version {
+        self.head.version()
+    }
+
+    /// Returns a mutable reference to the HTTP version of this response.
+    pub const fn version_mut(&mut self) -> &mut Version {
+        self.head.version_mut()
+    }
+
+    /// Returns the response code.
+    pub const fn status(&self) -> StatusCode {
+        self.head.status()
+    }
+
+    /// Returns a mutable reference to the response code.
+    pub const fn status_mut(&mut self) -> &mut StatusCode {
+        self.head.status_mut()
+    }
+
+    /// Returns the headers.
+    pub const fn headers(&self) -> &Headers {
+        self.head.headers()
+    }
+
+    /// Returns mutable access to the headers.
+    pub const fn headers_mut(&mut self) -> &mut Headers {
+        self.head.headers_mut()
+    }
+
+    /// Get the header’s value with `name`, if any.
+    ///
+    /// See [`Headers::get_value`] for more information.
+    pub fn header<'a, T>(&'a self, name: &HeaderName<'_>) -> Result<Option<T>, T::Err>
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.head.header(name)
+    }
+
+    /// Get the header’s value with `name` or return `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`. For more control over
+    /// the error handling see [`ResponseHead::header`].
+    pub fn header_or<'a, T>(&'a self, name: &HeaderName<'_>, default: T) -> T
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.head.header_or(name, default)
+    }
+
+    /// Get the header’s value with `name` or returns the result of `default`.
+    ///
+    /// Same as [`ResponseHead::header_or`] but uses a function to create the
+    /// default value.
+    pub fn header_or_else<'a, F, T>(&'a self, name: &HeaderName<'_>, default: F) -> T
+    where
+        T: FromHeaderValue<'a>,
+        F: FnOnce() -> T,
+    {
+        self.head.header_or_else(name, default)
     }
 
     /// Returns a reference to the body.
