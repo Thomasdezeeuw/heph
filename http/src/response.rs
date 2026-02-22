@@ -2,8 +2,8 @@ use std::ops::{Deref, DerefMut};
 
 use crate::body::EmptyBody;
 use crate::head::ResponseHead;
-use crate::head::header::FromHeaderValue;
-use crate::{Header, HeaderName, Headers, StatusCode, Version};
+use crate::head::header::{Csv, FromHeaderValue};
+use crate::{Header, HeaderName, Headers, Method, StatusCode, Version};
 
 /// HTTP response.
 #[derive(Debug)]
@@ -207,9 +207,13 @@ impl Response<EmptyBody> {
     }
 
     /// Create a 405 Method Not Allow response.
-    pub const fn method_not_allowed() -> Response<EmptyBody> {
-        Response::build_new(StatusCode::METHOD_NOT_ALLOWED)
-        // TODO: set Allow header.
+    pub fn method_not_allowed(allowed: &[Method]) -> Response<EmptyBody> {
+        let mut response = Response::build_new(StatusCode::METHOD_NOT_ALLOWED);
+        response
+            .headers_mut()
+            .append(HeaderName::ALLOW, Csv::new(allowed))
+            .unwrap();
+        response
     }
 
     /// Create a 410 Gone response.
