@@ -58,6 +58,11 @@ impl RequestHead {
         &self.path.0
     }
 
+    /// Returns a mutable reference to the path of this request.
+    pub fn path_mut(&mut self) -> &mut Path {
+        &mut self.path
+    }
+
     /// Returns the HTTP version of this request.
     ///
     /// # Notes
