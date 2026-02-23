@@ -16,7 +16,7 @@ fn headers_append_one_header() {
     const VALUE: &[u8] = b"GET";
 
     let mut headers = Headers::EMPTY;
-    headers.append(Header::new(HeaderName::ALLOW, VALUE));
+    headers.append(HeaderName::ALLOW, VALUE);
     assert_eq!(headers.len(), 1);
     assert!(!headers.is_empty());
 
@@ -31,9 +31,9 @@ fn headers_append_multiple_headers() {
     const X_REQUEST_ID: &[u8] = b"abc-def";
 
     let mut headers = Headers::EMPTY;
-    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
-    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.append(HeaderName::ALLOW, ALLOW);
+    headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
+    headers.append(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
     assert_eq!(headers.len(), 3);
     assert!(!headers.is_empty());
 
@@ -58,19 +58,19 @@ fn headers_insert() {
     const X_REQUEST_ID: &[u8] = b"abc-def";
 
     let mut headers = Headers::EMPTY;
-    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
-    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
-    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
-    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
-    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.append(HeaderName::ALLOW, ALLOW);
+    headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
+    headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
+    headers.append(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
+    headers.append(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
+    headers.append(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
     assert_eq!(headers.len(), 6);
     assert!(!headers.is_empty());
 
     // Should overwrite the headers appended above.
-    headers.insert(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.insert(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
-    headers.insert(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.insert(HeaderName::ALLOW, ALLOW);
+    headers.insert(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
+    headers.insert(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
     assert_eq!(headers.len(), 3);
     assert!(!headers.is_empty());
 
@@ -196,7 +196,7 @@ fn headers_get_not_found() {
     assert!(headers.get_bytes(&HeaderName::DATE).is_none());
     assert_eq!(headers.get_value::<&str>(&HeaderName::DATE), Ok(None));
 
-    headers.append(Header::new(HeaderName::ALLOW, b"GET"));
+    headers.append(HeaderName::ALLOW, "GET");
     assert!(headers.get(&HeaderName::DATE).is_none());
     assert!(headers.get_bytes(&HeaderName::DATE).is_none());
     assert_eq!(headers.get_value::<&str>(&HeaderName::DATE), Ok(None));
@@ -208,8 +208,8 @@ fn clear_headers() {
     const CONTENT_LENGTH: &[u8] = b"123";
 
     let mut headers = Headers::EMPTY;
-    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.append(HeaderName::ALLOW, ALLOW);
+    headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
     assert_eq!(headers.len(), 2);
     assert!(!headers.is_empty());
 
@@ -290,7 +290,7 @@ fn headers_get_all() {
 
     let mut headers = Headers::EMPTY;
 
-    headers.append(Header::new(NAME, VALUE1));
+    headers.append(NAME, VALUE1);
     assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
     assert_eq!(
         headers.get_all(&NAME).collect::<Vec<_>>(),
@@ -298,7 +298,7 @@ fn headers_get_all() {
     );
 
     // Append with the same name.
-    headers.append(Header::new(NAME, VALUE2));
+    headers.append(NAME, VALUE2);
     assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
     assert_eq!(
         headers.get_all(&NAME).collect::<Vec<_>>(),
@@ -314,8 +314,8 @@ fn headers_remove() {
 
     let mut headers = Headers::EMPTY;
 
-    headers.append(Header::new(NAME, VALUE1));
-    headers.append(Header::new(NAME, VALUE2));
+    headers.append(NAME, VALUE1);
+    headers.append(NAME, VALUE2);
 
     assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
     headers.remove(&NAME);
@@ -332,8 +332,8 @@ fn headers_remove_all() {
 
     let mut headers = Headers::EMPTY;
 
-    headers.append(Header::new(NAME, VALUE1));
-    headers.append(Header::new(NAME, VALUE2));
+    headers.append(NAME, VALUE1);
+    headers.append(NAME, VALUE2);
     headers.remove_all(&NAME);
     assert_eq!(headers.get_bytes(&NAME), None);
 }

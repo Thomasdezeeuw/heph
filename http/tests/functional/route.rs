@@ -1,7 +1,7 @@
 //! Tests for the [`route!`] macro.
 
 use heph_http::body::{EmptyBody, OneshotBody};
-use heph_http::{Headers, Method, Request, Response, Version, route};
+use heph_http::{Headers, Method, Path, Request, Response, Version, route};
 use heph_rt::test::block_on_future;
 
 async fn route<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
@@ -94,7 +94,10 @@ mod handlers {
 #[test]
 fn multiple_methods_same_route() {
     block_on_future(async move {
-        let tests = [Request::get("/".to_owned()), Request::head("/".to_owned())];
+        let tests = [
+            Request::get(Path::from("/")),
+            Request::head(Path::from("/")),
+        ];
         for test_request in tests {
             let response = route(test_request).await;
             assert_eq!(response.body().into_inner(), "index")
@@ -119,7 +122,7 @@ fn correct_routing_based_on_method() {
         for method in methods {
             let request = Request::new(
                 method,
-                "/test1".to_string(),
+                Path::from("/test1"),
                 Version::Http11,
                 Headers::EMPTY,
                 EmptyBody,
@@ -135,9 +138,9 @@ fn not_found_fallback() {
     block_on_future(async move {
         let tests = [
             // Unknown path.
-            Request::get("/unknown".to_owned()),
+            Request::get(Path::from("/unknown")),
             // Wrong method.
-            Request::get("/test2".to_owned()),
+            Request::get(Path::from("/test2")),
         ];
         for test_request in tests {
             let response = route(test_request).await;

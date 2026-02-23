@@ -3,7 +3,7 @@
 use heph_http::body::OneshotBody;
 use heph_http::handler::{Handler, Middleware};
 use heph_http::transform::{Body, Cloned, Path, TransformMiddleware};
-use heph_http::{Header, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
+use heph_http::{HeaderName, Headers, Method, Request, Response, StatusCode, Version};
 use heph_rt::test;
 
 const REQ_BODY: &'static str = "test_body";
@@ -86,7 +86,7 @@ fn transform_middleware() {
             Version::Http11,
             {
                 let mut headers = Headers::EMPTY;
-                headers.append(Header::new(HeaderName::HOST, HOST.as_bytes()));
+                headers.append(HeaderName::HOST, HOST);
                 headers
             },
             TestBody::new(REQ_BODY),

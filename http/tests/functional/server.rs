@@ -12,7 +12,7 @@ use heph::messages::Terminate;
 use heph::test::PanicSupervisor;
 use heph_http::body::{BodyLength, OneshotBody};
 use heph_http::server::RequestError;
-use heph_http::{Connection, Header, HeaderName, Headers, Method, StatusCode, Version};
+use heph_http::{Connection, HeaderName, Headers, Method, StatusCode, Version};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
@@ -55,8 +55,8 @@ fn get() {
         stream.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"2"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "2");
         let body = b"OK";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -68,8 +68,8 @@ fn head() {
         stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"0"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "0");
         let body = b"";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -83,8 +83,8 @@ fn post() {
             .unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"11"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "11");
         let body = b"Hello world";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -98,8 +98,8 @@ fn with_request_header() {
             .unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"2"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "2");
         let body = b"OK";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -113,8 +113,8 @@ fn with_multiple_request_headers() {
             .unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"2"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "2");
         let body = b"OK";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -129,9 +129,9 @@ fn deny_incomplete_request() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"31"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "31");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: incomplete request";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -145,8 +145,8 @@ fn deny_unknown_method() {
         let status = StatusCode::NOT_IMPLEMENTED;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"27"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "27");
         let body = b"Bad request: unknown method";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -159,9 +159,9 @@ fn deny_invalid_method() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"35"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "35");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid request syntax";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -175,8 +175,8 @@ fn accept_same_content_length_headers() {
             .unwrap();
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"2"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "2");
         let body = b"OK";
         expect_response(&mut stream, Version::Http11, StatusCode::OK, &headers, body);
     });
@@ -192,9 +192,9 @@ fn deny_different_content_length_headers() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"45"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "45");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: different Content-Length headers";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -215,9 +215,9 @@ fn deny_content_length_and_chunked_transfer_encoding_request() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"71"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "71");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: provided both Content-Length and Transfer-Encoding headers";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -233,9 +233,9 @@ fn deny_invalid_content_length_headers() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"42"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "42");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid Content-Length header";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -251,8 +251,8 @@ fn identity_transfer_encoding() {
         let status = StatusCode::OK;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"2"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "2");
         let body = b"OK";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -270,8 +270,8 @@ fn identity_transfer_encoding_with_content_length() {
         let status = StatusCode::OK;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"1"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "1");
         let body = b"A";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -287,9 +287,9 @@ fn deny_unsupported_transfer_encoding() {
         let status = StatusCode::NOT_IMPLEMENTED;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"42"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "42");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: unsupported Transfer-Encoding";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -305,9 +305,9 @@ fn deny_empty_transfer_encoding() {
         let status = StatusCode::NOT_IMPLEMENTED;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"42"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "42");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: unsupported Transfer-Encoding";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -323,9 +323,9 @@ fn deny_chunked_transfer_encoding_not_last() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"45"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "45");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid Transfer-Encoding header";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -346,9 +346,9 @@ fn deny_chunked_transfer_encoding_and_content_length_request() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"71"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "71");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: provided both Content-Length and Transfer-Encoding headers";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -363,8 +363,8 @@ fn empty_body_chunked_transfer_encoding() {
         let status = StatusCode::OK;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"0"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "0");
         let body = b"";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -379,9 +379,9 @@ fn deny_invalid_chunk_size() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"31"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "31");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid chunk size";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -400,8 +400,8 @@ fn read_partial_chunk_size_chunked_transfer_encoding() {
         let status = StatusCode::OK;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"0"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "0");
         let body = b"";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -421,9 +421,9 @@ fn too_large_http_head() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"27"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "27");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: head too large";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -436,9 +436,9 @@ fn invalid_header_name() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"32"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "32");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid header name";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -453,9 +453,9 @@ fn invalid_header_value() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"33"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "33");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid header value";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -468,9 +468,9 @@ fn invalid_carriage_return() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"35"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "35");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid request syntax";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -483,9 +483,9 @@ fn invalid_http_version() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"28"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "28");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: invalid version";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -502,9 +502,9 @@ fn too_many_header() {
         let status = StatusCode::BAD_REQUEST;
         let mut headers = Headers::EMPTY;
         let now = fmt_http_date(SystemTime::now());
-        headers.append(Header::new(HeaderName::DATE, now.as_bytes()));
-        headers.append(Header::new(HeaderName::CONTENT_LENGTH, b"28"));
-        headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+        headers.append(HeaderName::DATE, now.as_str());
+        headers.append(HeaderName::CONTENT_LENGTH, "28");
+        headers.append(HeaderName::CONNECTION, "close");
         let body = b"Bad request: too many header";
         expect_response(&mut stream, Version::Http11, status, &headers, body);
     });
@@ -679,7 +679,7 @@ async fn http_actor(
         }
 
         if should_close {
-            headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+            headers.append(HeaderName::CONNECTION, "close");
         }
 
         connection

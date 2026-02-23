@@ -7,7 +7,7 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::{SupervisorStrategy, restart_supervisor};
 use heph_http::body::OneshotBody;
-use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode};
+use heph_http::{self as http, HeaderName, Headers, Method, StatusCode};
 use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
@@ -68,7 +68,7 @@ async fn http_actor(
                 if request.path() != "/" {
                     (StatusCode::NOT_FOUND, "Not found".into(), false)
                 } else if !matches!(request.method(), Method::Get | Method::Head) {
-                    headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
+                    headers.append(HeaderName::ALLOW, "GET, HEAD");
                     let body = "Method not allowed".into();
                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
                 } else if !request.body().is_empty() {
@@ -93,7 +93,7 @@ async fn http_actor(
         };
 
         if should_close {
-            headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+            headers.append(HeaderName::CONNECTION, "close");
         }
 
         debug!("sending response: code={code}, body='{body}', source={address}");

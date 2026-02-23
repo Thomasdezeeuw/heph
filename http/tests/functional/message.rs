@@ -2,7 +2,7 @@ use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::head::{
     Header, HeaderName, Headers, Method, RequestHead, ResponseHead, StatusCode, Version,
 };
-use heph_http::{Request, Response};
+use heph_http::{Path, Request, Response};
 
 use crate::assert_size;
 
@@ -17,11 +17,11 @@ fn size() {
 #[test]
 fn request_head() {
     let headers = Headers::EMPTY;
-    let mut head = RequestHead::new(Method::Get, "/".to_string(), Version::Http10, headers);
+    let mut head = RequestHead::new(Method::Get, Path::from("/"), Version::Http10, headers);
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
-    head.headers_mut().append(header);
+    head.headers_mut().append_header(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
 
     *head.version_mut() = Version::Http11;
@@ -35,7 +35,7 @@ fn request_head() {
 fn request_header_or() {
     let mut request = Request::new(
         Method::Get,
-        "/".to_string(),
+        Path::from("/"),
         Version::Http10,
         Headers::EMPTY,
         EmptyBody,
@@ -46,7 +46,7 @@ fn request_header_or() {
     // OK.
     request
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+        .insert(HeaderName::CONTENT_TYPE, "123");
     assert_eq!(
         request.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0),
         123
@@ -54,7 +54,7 @@ fn request_header_or() {
     // Invalid.
     request
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+        .insert(HeaderName::CONTENT_TYPE, "abc");
     assert_eq!(request.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
 }
 
@@ -62,7 +62,7 @@ fn request_header_or() {
 fn request_header_or_else() {
     let mut request = Request::new(
         Method::Get,
-        "/".to_string(),
+        Path::from("/"),
         Version::Http10,
         Headers::EMPTY,
         EmptyBody,
@@ -81,7 +81,7 @@ fn request_header_or_else() {
     // OK.
     request
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+        .insert(HeaderName::CONTENT_TYPE, "123");
     assert_eq!(
         request.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || unreachable!()),
         123
@@ -89,7 +89,7 @@ fn request_header_or_else() {
     // Invalid.
     request
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+        .insert(HeaderName::CONTENT_TYPE, "abc");
     let mut called = false;
     assert_eq!(
         request.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
@@ -105,7 +105,7 @@ fn request_header_or_else() {
 fn request_map_body() {
     let request = Request::new(
         Method::Get,
-        "/".to_string(),
+        Path::from("/"),
         Version::Http10,
         Headers::EMPTY,
         EmptyBody,
@@ -116,7 +116,7 @@ fn request_map_body() {
 
 #[test]
 fn request_builder() {
-    let tests: [(fn(String) -> Request<EmptyBody>, Method); 5] = [
+    let tests: [(fn(Path) -> Request<EmptyBody>, Method); 5] = [
         (Request::get, Method::Get),
         (Request::head, Method::Head),
         (Request::post, Method::Post),
@@ -125,7 +125,7 @@ fn request_builder() {
     ];
 
     for (create, expected) in tests {
-        let request = create("/".to_owned()).with_body(OneshotBody::new(BODY1));
+        let request = create(Path::from("/")).with_body(OneshotBody::new(BODY1));
         assert_eq!(request.method(), expected);
         assert_eq!(request.path(), "/");
         assert_eq!(request.version(), Version::Http11);
@@ -141,7 +141,7 @@ fn response_head() {
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
-    head.headers_mut().append(header);
+    head.headers_mut().append_header(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
 
     *head.version_mut() = Version::Http11;
@@ -160,7 +160,7 @@ fn response_header_or() {
     // OK.
     response
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+        .insert(HeaderName::CONTENT_TYPE, "123");
     assert_eq!(
         response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0),
         123
@@ -168,7 +168,7 @@ fn response_header_or() {
     // Invalid.
     response
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+        .insert(HeaderName::CONTENT_TYPE, "abc");
     assert_eq!(response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
 }
 
@@ -189,7 +189,7 @@ fn response_header_or_else() {
     // OK.
     response
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+        .insert(HeaderName::CONTENT_TYPE, "123");
     assert_eq!(
         response.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || unreachable!()),
         123
@@ -197,7 +197,7 @@ fn response_header_or_else() {
     // Invalid.
     response
         .headers_mut()
-        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+        .insert(HeaderName::CONTENT_TYPE, "abc");
     let mut called = false;
     assert_eq!(
         response.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
@@ -218,7 +218,7 @@ fn response_map_body() {
 
 #[test]
 fn response_builder() {
-    let tests: [(fn() -> Response<EmptyBody>, StatusCode); 16] = [
+    let tests: [(fn() -> Response<EmptyBody>, StatusCode); 15] = [
         (Response::ok, StatusCode::OK),
         (Response::created, StatusCode::CREATED),
         (Response::no_content, StatusCode::NO_CONTENT),
@@ -227,7 +227,6 @@ fn response_builder() {
         (Response::unauthorized, StatusCode::UNAUTHORIZED),
         (Response::forbidden, StatusCode::FORBIDDEN),
         (Response::not_found, StatusCode::NOT_FOUND),
-        (Response::method_not_allowed, StatusCode::METHOD_NOT_ALLOWED),
         (Response::gone, StatusCode::GONE),
         (Response::length_required, StatusCode::LENGTH_REQUIRED),
         (Response::server_error, StatusCode::INTERNAL_SERVER_ERROR),
