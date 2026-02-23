@@ -1089,6 +1089,19 @@ macro_rules! int_impl {
                 Ok(value)
             }
         }
+
+        impl HeaderValue for $ty {
+            type Error = !;
+        }
+
+        impl private::HeaderValue for $ty {
+            type Error = !;
+
+            fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+                let mut itoa_buf = itoa::Buffer::new();
+                itoa_buf.format(*self).as_bytes().append(buf)
+            }
+        }
         )+
     };
 }
