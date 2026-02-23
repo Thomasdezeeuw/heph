@@ -1189,6 +1189,23 @@ impl private::HeaderValue for &str {
     }
 }
 
+/// Formats the value following RFC7231 section 7.1.1.1.
+impl HeaderValue for SystemTime {
+    type Error = !;
+}
+
+impl private::HeaderValue for SystemTime {
+    type Error = !;
+
+    fn append(&self, buf: &mut Vec<u8>) -> Result<(), Self::Error> {
+        use std::io::Write;
+        // SAFETY: formatting a HttpDate never fails, neither does writing into
+        // a Vec<u8>.
+        write!(buf, "{}", httpdate::HttpDate::from(*self)).unwrap();
+        Ok(())
+    }
+}
+
 /// Comma Separated Value (CSV) header value.
 ///
 /// Header value that turns a slice such as `[1, 2, 3]` into a header value
