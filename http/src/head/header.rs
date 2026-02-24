@@ -39,10 +39,15 @@ struct HeaderPart {
 
 impl Headers {
     /// Empty list of headers.
-    pub const EMPTY: Headers = Headers {
-        values: Vec::new(),
-        parts: Vec::new(),
-    };
+    pub const EMPTY: Headers = Headers::empty();
+
+    /// Empty list of headers.
+    pub const fn empty() -> Headers {
+        Headers {
+            values: Vec::new(),
+            parts: Vec::new(),
+        }
+    }
 
     /// Creates new `Headers` from `headers`.
     ///
