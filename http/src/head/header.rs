@@ -298,15 +298,7 @@ impl From<Header<'static, '_>> for Headers {
 
 impl<const N: usize> From<[Header<'static, '_>; N]> for Headers {
     fn from(raw_headers: [Header<'static, '_>; N]) -> Headers {
-        let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
-        let mut headers = Headers {
-            values: Vec::with_capacity(values_len),
-            parts: Vec::with_capacity(raw_headers.len()),
-        };
-        for header in raw_headers {
-            headers.append(header.name.clone(), header.value);
-        }
-        headers
+        Headers::from(raw_headers.as_slice())
     }
 }
 
@@ -364,12 +356,11 @@ impl<'a> IntoIterator for &'a Headers {
 impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
-        for part in &self.parts {
-            let value = &self.values[part.range()];
-            if let Ok(str) = str::from_utf8(value) {
-                let _ = f.entry(&part.name, &str);
+        for header in self.iter() {
+            if let Ok(str) = str::from_utf8(header.value) {
+                let _ = f.entry(&header.name, &str);
             } else {
-                let _ = f.entry(&part.name, &value);
+                let _ = f.entry(&header.name, &header.value);
             }
         }
         f.finish()
@@ -388,12 +379,11 @@ impl<'a> Iterator for Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.headers.parts.get(self.pos).map(|part| {
-            let header = Header {
+            self.pos += 1;
+            Header {
                 name: part.name.borrow(),
                 value: &self.headers.values[part.range()],
-            };
-            self.pos += 1;
-            header
+            }
         })
     }
 
@@ -989,7 +979,7 @@ impl<'n> HeaderName<'n> {
     ///
     /// This is used in things like [`Headers::get`] and [`Iter`] for `Headers`
     /// to avoid clone heap-allocated `HeaderName`s.
-    fn borrow<'b>(&'b self) -> HeaderName<'b> {
+    const fn borrow<'b>(&'b self) -> HeaderName<'b> {
         HeaderName {
             inner: self.inner.borrow(),
         }
