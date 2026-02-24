@@ -5,7 +5,7 @@
 
 use std::marker::PhantomData;
 use std::panic::{RefUnwindSafe, UnwindSafe};
-use std::{fmt, slice, str};
+use std::{fmt, ptr, slice, str};
 
 /// Marker on [`Str::length`] to indicate the string is heap allocated.
 const MARK_OWNED: usize = 1 << (usize::BITS - 1);
@@ -17,7 +17,7 @@ const MARK_OWNED: usize = 1 << (usize::BITS - 1);
 pub(crate) struct Str<'a> {
     /// Pointer must always be valid and point to atleast `length` bytes that
     /// are valid UTF-8.
-    ptr: *const u8,
+    ptr: ptr::NonNull<u8>,
     /// Number of bytes that are valid UTF-8.
     ///
     /// This is marked, use [`Str::len()`] to ge the correct length.
@@ -32,10 +32,10 @@ impl Str<'static> {
     ///
     /// This "leaks" the unused capacity of `string`.
     pub(crate) fn from_string(string: String) -> Str<'static> {
-        let bytes = string.into_bytes().leak();
+        let (ptr, len, _) = string.into_raw_parts();
         Str {
-            ptr: bytes.as_ptr(),
-            length: bytes.len() | MARK_OWNED,
+            ptr: unsafe { ptr::NonNull::new_unchecked(ptr) },
+            length: len | MARK_OWNED,
             _phantom: PhantomData,
         }
     }
@@ -45,7 +45,7 @@ impl<'a> Str<'a> {
     /// Create a borrowed `Str` from `string`.
     pub(crate) const fn from_str(string: &'a str) -> Str<'a> {
         Str {
-            ptr: string.as_ptr(),
+            ptr: unsafe { ptr::NonNull::new_unchecked(string.as_ptr().cast_mut()) },
             length: string.len(),
             _phantom: PhantomData,
         }
@@ -58,7 +58,7 @@ impl<'a> Str<'a> {
     {
         Str {
             ptr: self.ptr,
-            length: self.len(),
+            length: self.length,
             _phantom: PhantomData,
         }
     }
@@ -66,7 +66,7 @@ impl<'a> Str<'a> {
     /// Returns the `Str` as `str`.
     const fn as_str(&self) -> &'a str {
         // SAFETY: safe based on the docs of `ptr` and `length`.
-        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.ptr, self.len())) }
+        unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.ptr.as_ptr(), self.len())) }
     }
 
     /// Returns the length of the string.
@@ -124,7 +124,8 @@ impl<'a> Drop for Str<'a> {
     fn drop(&mut self) {
         if self.is_heap_allocated() {
             let len = self.len();
-            unsafe { drop(Vec::<u8>::from_raw_parts(self.ptr.cast_mut(), len, len)) }
+            let cap = len; // We don't have the capacity.
+            unsafe { drop(String::from_raw_parts(self.ptr.as_ptr(), len, cap)) }
         }
     }
 }
