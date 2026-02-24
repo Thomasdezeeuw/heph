@@ -194,12 +194,10 @@ impl Headers {
 
     /// Get the header's value with `name` as byte slice, if any.
     pub fn get_bytes<'a>(&'a self, name: &HeaderName<'_>) -> Option<&'a [u8]> {
-        for part in &self.parts {
-            if part.name == *name {
-                return Some(&self.values[part.range()]);
-            }
-        }
-        None
+        self.parts
+            .iter()
+            .find(|part| part.name == *name)
+            .map(|part| &self.values[part.range()])
     }
 
     /// Get the header’s value with `name` or return `default`.
