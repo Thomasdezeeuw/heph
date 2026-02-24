@@ -255,7 +255,7 @@ impl Response<EmptyBody> {
 
     /// Simple version of [`Response::new`] used to build a new response.
     pub const fn build_new(status: StatusCode) -> Response<EmptyBody> {
-        Response::new(Version::Http11, status, Headers::EMPTY, EmptyBody)
+        Response::new(Version::Http11, status, Headers::empty(), EmptyBody)
     }
 
     /// Append a new header.

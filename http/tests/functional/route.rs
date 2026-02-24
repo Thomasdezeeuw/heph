@@ -124,7 +124,7 @@ fn correct_routing_based_on_method() {
                 method,
                 Path::from("/test1"),
                 Version::Http11,
-                Headers::EMPTY,
+                Headers::empty(),
                 EmptyBody,
             );
             let response = route(request).await;

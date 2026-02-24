@@ -59,7 +59,7 @@ impl Client {
         &'c mut self,
         path: &'p str,
     ) -> Result<Response<Body<'c>>, ResponseError> {
-        self.request(Method::Get, path, &Headers::EMPTY, EmptyBody)
+        self.request(Method::Get, path, &Headers::empty(), EmptyBody)
             .await
     }
 

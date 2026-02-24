@@ -53,7 +53,7 @@ macro_rules! with_test_server {
 fn get() {
     with_test_server!(|stream| {
         stream.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "2");
@@ -66,7 +66,7 @@ fn get() {
 fn head() {
     with_test_server!(|stream| {
         stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "0");
@@ -81,7 +81,7 @@ fn post() {
         stream
             .write_all(b"POST /echo-body HTTP/1.1\r\nContent-Length: 11\r\n\r\nHello world")
             .unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "11");
@@ -96,7 +96,7 @@ fn with_request_header() {
         stream
             .write_all(b"GET / HTTP/1.1\r\nUser-Agent:heph-http\r\n\r\n")
             .unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "2");
@@ -111,7 +111,7 @@ fn with_multiple_request_headers() {
         stream
             .write_all(b"GET / HTTP/1.1\r\nUser-Agent:heph-http\r\nAccept: */*\r\n\r\n")
             .unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "2");
@@ -127,7 +127,7 @@ fn deny_incomplete_request() {
         stream.write_all(b"GET / HTTP/1.1\r\n").unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "31");
@@ -143,7 +143,7 @@ fn deny_unknown_method() {
         stream.write_all(b"MY_GET / HTTP/1.1\r\n\r\n").unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::NOT_IMPLEMENTED;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "27");
@@ -157,7 +157,7 @@ fn deny_invalid_method() {
     with_test_server!(|stream| {
         stream.write_all(b"G\nE\rT / HTTP/1.1\r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "35");
@@ -173,7 +173,7 @@ fn accept_same_content_length_headers() {
         stream
             .write_all(b"GET / HTTP/1.1\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n")
             .unwrap();
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "2");
@@ -190,7 +190,7 @@ fn deny_different_content_length_headers() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "45");
@@ -213,7 +213,7 @@ fn deny_content_length_and_chunked_transfer_encoding_request() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "71");
@@ -231,7 +231,7 @@ fn deny_invalid_content_length_headers() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "42");
@@ -249,7 +249,7 @@ fn identity_transfer_encoding() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::OK;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "2");
@@ -268,7 +268,7 @@ fn identity_transfer_encoding_with_content_length() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::OK;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "1");
@@ -285,7 +285,7 @@ fn deny_unsupported_transfer_encoding() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::NOT_IMPLEMENTED;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "42");
@@ -303,7 +303,7 @@ fn deny_empty_transfer_encoding() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::NOT_IMPLEMENTED;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "42");
@@ -321,7 +321,7 @@ fn deny_chunked_transfer_encoding_not_last() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "45");
@@ -344,7 +344,7 @@ fn deny_chunked_transfer_encoding_and_content_length_request() {
             .unwrap();
         stream.shutdown(Shutdown::Write).unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "71");
@@ -361,7 +361,7 @@ fn empty_body_chunked_transfer_encoding() {
             .write_all(b"POST /echo-body HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n")
             .unwrap();
         let status = StatusCode::OK;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "0");
@@ -377,7 +377,7 @@ fn deny_invalid_chunk_size() {
             .write_all(b"GET / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\nZ\r\nAbc0\r\n")
             .unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "31");
@@ -398,7 +398,7 @@ fn read_partial_chunk_size_chunked_transfer_encoding() {
         sleep(Duration::from_millis(200));
         stream.write_all(b"0\r\n").unwrap();
         let status = StatusCode::OK;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "0");
@@ -419,7 +419,7 @@ fn too_large_http_head() {
         stream.write_all(&header_value).unwrap();
         stream.write_all(b"\r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "27");
@@ -434,7 +434,7 @@ fn invalid_header_name() {
     with_test_server!(|stream| {
         stream.write_all(b"GET / HTTP/1.1\r\n\0: \r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "32");
@@ -451,7 +451,7 @@ fn invalid_header_value() {
             .write_all(b"GET / HTTP/1.1\r\nAbc: Header\rvalue\r\n\r\n")
             .unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "33");
@@ -466,7 +466,7 @@ fn invalid_carriage_return() {
     with_test_server!(|stream| {
         stream.write_all(b"\rGET / HTTP/1.1\r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "35");
@@ -481,7 +481,7 @@ fn invalid_http_version() {
     with_test_server!(|stream| {
         stream.write_all(b"GET / HTTPS/1.1\r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "28");
@@ -500,7 +500,7 @@ fn too_many_header() {
         }
         stream.write_all(b"\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         let now = fmt_http_date(SystemTime::now());
         headers.append(HeaderName::DATE, now.as_str());
         headers.append(HeaderName::CONTENT_LENGTH, "28");
@@ -637,7 +637,7 @@ async fn http_actor(
     _: actor::Context<!, ThreadLocal>,
     mut connection: Connection,
 ) -> io::Result<()> {
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     loop {
         let mut got_version = None;
         let mut got_method = None;

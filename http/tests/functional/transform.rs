@@ -85,7 +85,7 @@ fn transform_middleware() {
             path.into(),
             Version::Http11,
             {
-                let mut headers = Headers::EMPTY;
+                let mut headers = Headers::empty();
                 headers.append(HeaderName::HOST, HOST);
                 headers
             },

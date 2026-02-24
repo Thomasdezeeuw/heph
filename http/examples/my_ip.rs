@@ -55,7 +55,7 @@ async fn http_actor(
     info!("accepted connection: source={address}");
 
     let mut read_timeout = READ_TIMEOUT;
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     loop {
         let fut = Deadline::after(
             ctx.runtime_ref().clone(),

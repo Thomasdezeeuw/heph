@@ -467,7 +467,7 @@ impl Connection {
     /// let body = OneshotBody::new(msg.as_bytes());
     ///
     /// // Respond with the response.
-    /// conn.send_response(request_method, version, StatusCode::BAD_REQUEST, &Headers::EMPTY, body);
+    /// conn.send_response(request_method, version, StatusCode::BAD_REQUEST, &Headers::empty(), body);
     ///
     /// // Close the connection if the error is fatal.
     /// if err.should_close() {

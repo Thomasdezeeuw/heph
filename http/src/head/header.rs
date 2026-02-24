@@ -279,7 +279,7 @@ impl HeaderPart {
 
 impl Default for Headers {
     fn default() -> Headers {
-        Headers::EMPTY
+        Headers::empty()
     }
 }
 
@@ -329,7 +329,7 @@ impl<'v> FromIterator<Header<'static, 'v>> for Headers {
     where
         I: IntoIterator<Item = Header<'static, 'v>>,
     {
-        let mut headers = Headers::EMPTY;
+        let mut headers = Headers::empty();
         headers.extend(iter);
         headers
     }

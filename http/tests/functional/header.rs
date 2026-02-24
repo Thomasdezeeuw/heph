@@ -15,7 +15,7 @@ fn sizes() {
 fn headers_append_one_header() {
     const VALUE: &[u8] = b"GET";
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     headers.append(HeaderName::ALLOW, VALUE);
     assert_eq!(headers.len(), 1);
     assert!(!headers.is_empty());
@@ -30,7 +30,7 @@ fn headers_append_multiple_headers() {
     const CONTENT_LENGTH: &[u8] = b"123";
     const X_REQUEST_ID: &[u8] = b"abc-def";
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     headers.append(HeaderName::ALLOW, ALLOW);
     headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
     headers.append(HeaderName::X_REQUEST_ID, X_REQUEST_ID);
@@ -57,7 +57,7 @@ fn headers_insert() {
     const CONTENT_LENGTH: &[u8] = b"123";
     const X_REQUEST_ID: &[u8] = b"abc-def";
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     headers.append(HeaderName::ALLOW, ALLOW);
     headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
     headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
@@ -191,7 +191,7 @@ fn headers_from_iter_and_extend() {
 
 #[test]
 fn headers_get_not_found() {
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     assert!(headers.get(&HeaderName::DATE).is_none());
     assert!(headers.get_bytes(&HeaderName::DATE).is_none());
     assert_eq!(headers.get_value::<&str>(&HeaderName::DATE), Ok(None));
@@ -207,7 +207,7 @@ fn clear_headers() {
     const ALLOW: &[u8] = b"GET";
     const CONTENT_LENGTH: &[u8] = b"123";
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
     headers.append(HeaderName::ALLOW, ALLOW);
     headers.append(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH);
     assert_eq!(headers.len(), 2);
@@ -288,7 +288,7 @@ fn headers_get_all() {
     const VALUE2: &[u8] = b"GET";
     const NAME: HeaderName<'static> = HeaderName::ALLOW;
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
 
     headers.append(NAME, VALUE1);
     assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
@@ -312,7 +312,7 @@ fn headers_remove() {
     const VALUE2: &[u8] = b"GET";
     const NAME: HeaderName<'static> = HeaderName::ALLOW;
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
 
     headers.append(NAME, VALUE1);
     headers.append(NAME, VALUE2);
@@ -330,7 +330,7 @@ fn headers_remove_all() {
     const VALUE2: &[u8] = b"GET";
     const NAME: HeaderName<'static> = HeaderName::ALLOW;
 
-    let mut headers = Headers::EMPTY;
+    let mut headers = Headers::empty();
 
     headers.append(NAME, VALUE1);
     headers.append(NAME, VALUE2);

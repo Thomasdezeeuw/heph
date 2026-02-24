@@ -16,7 +16,7 @@ fn size() {
 
 #[test]
 fn request_head() {
-    let headers = Headers::EMPTY;
+    let headers = Headers::empty();
     let mut head = RequestHead::new(Method::Get, Path::from("/"), Version::Http10, headers);
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
@@ -37,7 +37,7 @@ fn request_header_or() {
         Method::Get,
         Path::from("/"),
         Version::Http10,
-        Headers::EMPTY,
+        Headers::empty(),
         EmptyBody,
     );
 
@@ -64,7 +64,7 @@ fn request_header_or_else() {
         Method::Get,
         Path::from("/"),
         Version::Http10,
-        Headers::EMPTY,
+        Headers::empty(),
         EmptyBody,
     );
 
@@ -107,7 +107,7 @@ fn request_map_body() {
         Method::Get,
         Path::from("/"),
         Version::Http10,
-        Headers::EMPTY,
+        Headers::empty(),
         EmptyBody,
     )
     .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
@@ -136,7 +136,7 @@ fn request_builder() {
 
 #[test]
 fn response_head() {
-    let headers = Headers::EMPTY;
+    let headers = Headers::empty();
     let mut head = ResponseHead::new(Version::Http10, StatusCode::OK, headers);
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
@@ -153,7 +153,7 @@ fn response_head() {
 
 #[test]
 fn response_header_or() {
-    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody);
+    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::empty(), EmptyBody);
 
     // Not found.
     assert_eq!(response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
@@ -174,7 +174,7 @@ fn response_header_or() {
 
 #[test]
 fn response_header_or_else() {
-    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody);
+    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::empty(), EmptyBody);
 
     // Not found.
     let mut called = false;
@@ -211,7 +211,7 @@ fn response_header_or_else() {
 
 #[test]
 fn response_map_body() {
-    let response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody)
+    let response = Response::new(Version::Http10, StatusCode::OK, Headers::empty(), EmptyBody)
         .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
     assert_eq!(response.body().into_inner(), BODY1);
 }

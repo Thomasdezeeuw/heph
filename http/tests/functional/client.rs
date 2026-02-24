@@ -318,7 +318,7 @@ fn request_sets_content_length_header() {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let body = OneshotBody::new("Ok");
             let response = client
-                .request(Method::Get, "/", &Headers::EMPTY, body)
+                .request(Method::Get, "/", &Headers::empty(), body)
                 .await
                 .unwrap();
             let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
@@ -364,7 +364,7 @@ fn partial_response() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::IncompleteResponse);
@@ -439,7 +439,7 @@ fn different_content_length() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::DifferentContentLengths);
@@ -475,7 +475,7 @@ fn transfer_encoding_and_content_length_and() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::ContentLengthAndTransferEncoding);
@@ -511,7 +511,7 @@ fn invalid_content_length() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidContentLength);
@@ -690,7 +690,7 @@ fn unsupported_transfer_encoding() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::UnsupportedTransferEncoding);
@@ -764,7 +764,7 @@ fn content_length_and_transfer_encoding() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::ContentLengthAndTransferEncoding);
@@ -800,7 +800,7 @@ fn invalid_chunk_size() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidChunkSize);
@@ -836,10 +836,10 @@ fn connect() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let response = client
-                .request(Method::Connect, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Connect, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap();
-            let headers = Headers::EMPTY;
+            let headers = Headers::empty();
             expect_response(response, Version::Http11, StatusCode::OK, &headers, b"").await;
             Ok(())
         }
@@ -872,10 +872,10 @@ fn head() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let response = client
-                .request(Method::Head, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Head, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap();
-            let headers = Headers::EMPTY;
+            let headers = Headers::empty();
             expect_response(response, Version::Http11, StatusCode::OK, &headers, b"").await;
             Ok(())
         }
@@ -908,10 +908,10 @@ fn response_status_204() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let response = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap();
-            let headers = Headers::EMPTY;
+            let headers = Headers::empty();
             let status = StatusCode::NO_CONTENT;
             expect_response(response, Version::Http11, status, &headers, b"").await;
             Ok(())
@@ -945,10 +945,10 @@ fn no_content_length_no_transfer_encoding_response() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let response = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap();
-            let headers = Headers::EMPTY;
+            let headers = Headers::empty();
             expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
             Ok(())
         }
@@ -982,7 +982,7 @@ fn response_head_too_large() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::HeadTooLarge);
@@ -1020,7 +1020,7 @@ fn invalid_header_name() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidHeaderName);
@@ -1055,7 +1055,7 @@ fn invalid_header_value() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidHeaderValue);
@@ -1092,7 +1092,7 @@ fn invalid_new_line() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidNewLine);
@@ -1127,7 +1127,7 @@ fn invalid_version() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidVersion);
@@ -1162,7 +1162,7 @@ fn invalid_status() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::InvalidStatus);
@@ -1197,7 +1197,7 @@ fn too_many_headers() {
         ) -> io::Result<()> {
             let mut client = Client::connect(ctx.runtime_ref(), address).await?;
             let err = client
-                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .request(Method::Get, "/", &Headers::empty(), EmptyBody)
                 .await
                 .unwrap_err();
             assert_eq!(err, ResponseError::TooManyHeaders);

@@ -175,7 +175,7 @@ impl Request<EmptyBody> {
 
     /// Simple version of [`Request::new`] used by the build functions.
     const fn build_new(method: Method, path: Path) -> Request<EmptyBody> {
-        Request::new(method, path, Version::Http11, Headers::EMPTY, EmptyBody)
+        Request::new(method, path, Version::Http11, Headers::empty(), EmptyBody)
     }
 
     /// Add a body to the request.
