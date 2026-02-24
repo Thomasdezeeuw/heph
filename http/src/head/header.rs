@@ -147,7 +147,7 @@ impl Headers {
     ///
     /// If all you need is the header value you can use [`Headers::get_value`]
     /// or [`Headers::get_bytes`] for the raw value.
-    pub fn get(&self, name: &HeaderName<'_>) -> Option<Header<'_, '_>> {
+    pub fn get<'a>(&'a self, name: &HeaderName<'_>) -> Option<Header<'a, 'a>> {
         self.parts
             .iter()
             .find(|part| part.name == *name)
@@ -158,15 +158,12 @@ impl Headers {
     }
 
     /// Get all headers with `name`, if any.
-    pub fn get_all<'h, 'n>(
-        &'h self,
-        name: &'n HeaderName<'n>,
-    ) -> impl Iterator<Item = Header<'n, 'h>> {
+    pub fn get_all<'a>(&'a self, name: &HeaderName<'_>) -> impl Iterator<Item = Header<'a, 'a>> {
         self.parts
             .iter()
             .filter(|part| part.name == *name)
-            .map(move |part| Header {
-                name: name.borrow(),
+            .map(|part| Header {
+                name: part.name.borrow(),
                 value: &self.values[part.start..part.end],
             })
     }
