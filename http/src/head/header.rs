@@ -8,6 +8,7 @@
 //! A list of known (registered) headers in available in [`HeaderName`].
 
 use std::iter::FusedIterator;
+use std::ops::Range;
 use std::time::SystemTime;
 use std::{fmt, str};
 
@@ -32,8 +33,8 @@ pub struct Headers {
 struct HeaderPart {
     name: HeaderName<'static>,
     /// Indices into `Headers.values`.
-    start: usize,
-    end: usize,
+    start: u32,
+    end: u32,
 }
 
 impl Headers {
@@ -121,7 +122,11 @@ impl Headers {
             return Err(err);
         }
         let end = self.values.len();
-        self.parts.push(HeaderPart { name, start, end });
+        self.parts.push(HeaderPart {
+            name,
+            start: start as u32,
+            end: end as u32,
+        });
         Ok(())
     }
 
@@ -153,7 +158,7 @@ impl Headers {
             .find(|part| part.name == *name)
             .map(|part| Header {
                 name: part.name.borrow(),
-                value: &self.values[part.start..part.end],
+                value: &self.values[part.range()],
             })
     }
 
@@ -164,7 +169,7 @@ impl Headers {
             .filter(|part| part.name == *name)
             .map(|part| Header {
                 name: part.name.borrow(),
-                value: &self.values[part.start..part.end],
+                value: &self.values[part.range()],
             })
     }
 
@@ -186,7 +191,7 @@ impl Headers {
     pub fn get_bytes<'a>(&'a self, name: &HeaderName<'_>) -> Option<&'a [u8]> {
         for part in &self.parts {
             if part.name == *name {
-                return Some(&self.values[part.start..part.end]);
+                return Some(&self.values[part.range()]);
             }
         }
         None
@@ -260,6 +265,15 @@ impl Headers {
     }
 }
 
+impl HeaderPart {
+    const fn range(&self) -> Range<usize> {
+        Range {
+            start: self.start as usize,
+            end: self.end as usize,
+        }
+    }
+}
+
 impl Default for Headers {
     fn default() -> Headers {
         Headers::EMPTY
@@ -273,7 +287,7 @@ impl From<Header<'static, '_>> for Headers {
             parts: vec![HeaderPart {
                 name: header.name,
                 start: 0,
-                end: header.value.len(),
+                end: header.value.len() as u32,
             }],
         }
     }
@@ -348,7 +362,7 @@ impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
         for part in &self.parts {
-            let value = &self.values[part.start..part.end];
+            let value = &self.values[part.range()];
             if let Ok(str) = str::from_utf8(value) {
                 let _ = f.entry(&part.name, &str);
             } else {
@@ -373,7 +387,7 @@ impl<'a> Iterator for Iter<'a> {
         self.headers.parts.get(self.pos).map(|part| {
             let header = Header {
                 name: part.name.borrow(),
-                value: &self.headers.values[part.start..part.end],
+                value: &self.headers.values[part.range()],
             };
             self.pos += 1;
             header
