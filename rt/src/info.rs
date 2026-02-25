@@ -1,19 +1,9 @@
 //! Host machine information.
 
-use std::env::consts::ARCH;
 use std::ffi::CStr;
 use std::{fmt, io, mem};
 
 use crate::syscall;
-
-// We could also use `std::env::consts::OS`, but this looks better.
-const OS: &str = cfg_select! {
-    target_os = "linux" => "GNU/Linux",
-    target_os = "freebsd" => "FreeBSD",
-    target_os = "macos" => "macOS",
-};
-
-const HEPH_RT_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
 /// Info about the runtime and it's running environment.
 #[derive(Debug)]
@@ -44,17 +34,22 @@ impl Info {
 
     /// Version of the Heph-rt crate.
     pub(crate) fn heph_rt_version(&self) -> &str {
-        HEPH_RT_VERSION
+        concat!("v", env!("CARGO_PKG_VERSION"))
     }
 
     /// OS name.
     pub(crate) fn host_os(&self) -> &str {
-        OS
+        // We could also use `std::env::consts::OS`, but this looks better.
+        cfg_select! {
+            target_os = "linux" => "GNU/Linux",
+            target_os = "freebsd" => "FreeBSD",
+            target_os = "macos" => "macOS",
+        }
     }
 
     /// Host architecture.
     pub(crate) fn host_arch(&self) -> &str {
-        ARCH
+        std::env::consts::ARCH
     }
 
     /// OS version.
