@@ -8,9 +8,10 @@ use std::sync::Arc;
 
 use heph::actor_ref::{ActorGroup, SendError};
 
+use crate::metrics::LocalMetrics;
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
-use crate::{RuntimeRef, cpu_usage, panic_message, process, shared, trace, worker};
+use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -80,6 +81,23 @@ impl RuntimeInternals {
         )
     }
 
+    /// Returns metrics about the shared scheduler and timers.
+    pub(crate) fn metrics(&self) -> LocalMetrics {
+        let scheduler = self.scheduler.borrow();
+        let mut timers = self.timers.borrow_mut();
+        LocalMetrics {
+            scheduler_ready: scheduler.ready(),
+            scheduler_inactive: scheduler.inactive(),
+            timers: timers.len(),
+            timers_next: timers.next_timer(),
+            trace_counter: self
+                .trace_log
+                .borrow()
+                .as_ref()
+                .map_or(0, |t| t.counter() as usize),
+        }
+    }
+
     /// Relay a process `signal` to all actors that wanted to receive it, or
     /// returns an error if no actors want to receive it.
     pub(crate) fn relay_signal(&self, signal: process::Signal) {
@@ -110,21 +128,18 @@ impl RuntimeInternals {
     /// Print metrics about the runtime internals.
     pub(crate) fn log_metrics(&self) {
         let timing = trace::start(&*self.trace_log.borrow());
-        let trace_metrics = self.trace_log.borrow().as_ref().map(trace::Log::metrics);
-        let scheduler = self.scheduler.borrow();
-        // NOTE: need mutable access to timers due to `Timers::next`.
-        let mut timers = self.timers.borrow_mut();
+        let metrics = self.metrics();
         log::info!(
             target: "metrics",
             worker_id = self.id.get(),
             cpu_affinity = self.cpu,
-            scheduler_ready = scheduler.ready(),
-            scheduler_inactive = scheduler.inactive(),
-            timers_total = timers.len(),
-            timers_next:? = timers.next_timer(),
+            scheduler_ready = metrics.scheduler_ready(),
+            scheduler_inactive = metrics.scheduler_inactive(),
+            timers = metrics.timers(),
+            timers_next:? = metrics.timers_next(),
             process_signal_receivers = self.signal_receivers.borrow().len(),
-            cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
-            trace_counter = trace_metrics.map_or(0, |m| m.counter);
+            cpu_time:? = metrics.cpu_time(),
+            trace_counter = metrics.trace_counter();
             "worker metrics",
         );
         trace::finish_rt(

@@ -163,6 +163,7 @@ pub mod info;
 pub mod io;
 mod local;
 pub mod log;
+pub mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;
@@ -189,6 +190,7 @@ pub use error::Error;
 pub use setup::Setup;
 
 use info::Info;
+use metrics::{LocalMetrics, SharedMetrics};
 use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
@@ -545,6 +547,26 @@ impl RuntimeRef {
     /// Get information about the runtime and the environment it's running in.
     pub fn info(&self) -> &Info {
         self.shared().info()
+    }
+
+    /// Get metrics about the shared parts of the runtime, such as thread-safe
+    /// actors.
+    ///
+    /// These metrics are the same regardless on what thread this is called,
+    /// unlike [`RuntimeRef::local_metrics`] which returns worker specific
+    /// metrics.
+    pub fn shared_metrics(&self) -> SharedMetrics {
+        self.shared().metrics()
+    }
+
+    /// Get metrics about the local parts of the runtime, such as thread-local
+    /// actors.
+    ///
+    /// These metrics are different depending on what worker thread this is
+    /// called. See [`RuntimeRef::shared_metrics`] for metrics about the shared
+    /// part of the runtime.
+    pub fn local_metrics(&self) -> LocalMetrics {
+        self.internals.metrics()
     }
 
     /// Returns a reference to the shared internals.
