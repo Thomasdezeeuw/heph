@@ -15,7 +15,6 @@
 //! [worker threads]: crate::worker
 //! [sync worker threads]: crate::sync_worker
 
-use std::os::unix::process::parent_id;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
@@ -263,8 +262,8 @@ impl Coordinator {
             host_name = info.host_name(),
             host_id:% = info.host_id(),
             app_name = info.app_name(),
-            process_id = std::process::id(),
-            parent_process_id = parent_id(),
+            process_id = info.process_id(),
+            parent_process_id = info.parent_process_id(),
             uptime:? = self.start.elapsed(),
             worker_threads = self.workers.len(),
             sync_actors = self.sync_workers.len(),

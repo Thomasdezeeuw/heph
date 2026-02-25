@@ -5,7 +5,8 @@
 //! [`RuntimeRef::info`]: crate::RuntimeRef::info
 
 use std::ffi::CStr;
-use std::{fmt, io, mem};
+use std::os::unix::process::parent_id;
+use std::{fmt, io, mem, process};
 
 use crate::syscall;
 
@@ -16,6 +17,8 @@ pub struct Info {
     host_id: Uuid,
     host_name: Box<str>,
     app_name: Box<str>,
+    pid: u32,
+    ppid: u32,
 }
 
 impl Info {
@@ -28,11 +31,15 @@ impl Info {
         let version = unsafe { CStr::from_ptr(info.version.as_ptr().cast()).to_string_lossy() };
         let nodename = unsafe { CStr::from_ptr(info.nodename.as_ptr().cast()).to_string_lossy() };
         let host_id = host_id()?;
+        let pid = process::id();
+        let ppid = parent_id();
         Ok(Info {
             app_name,
             host_release: format!("{sysname} {release} {version}").into(),
             host_id,
             host_name: nodename.into(),
+            pid,
+            ppid,
         })
     }
 
@@ -78,6 +85,16 @@ impl Info {
     /// [`Setup::with_name`]: crate::Setup::with_name
     pub fn app_name(&self) -> &str {
         &*self.app_name
+    }
+
+    /// Id of the process (pid).
+    pub fn process_id(&self) -> u32 {
+        self.pid
+    }
+
+    /// Id of the parent process (ppid).
+    pub fn parent_process_id(&self) -> u32 {
+        self.ppid
     }
 }
 
