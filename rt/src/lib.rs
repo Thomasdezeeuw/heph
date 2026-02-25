@@ -549,6 +549,16 @@ impl RuntimeRef {
         self.shared().info()
     }
 
+    /// Get metrics about the shared parts of the runtime, such as thread-safe
+    /// actors.
+    ///
+    /// These metrics are the same regardless on what thread this is called,
+    /// unlike [`RuntimeRef::local_metrics`] which returns worker specific
+    /// metrics.
+    pub fn shared_metrics(&self) -> SharedMetrics {
+        self.shared().metrics()
+    }
+
     /// Returns a reference to the shared internals.
     fn shared(&self) -> &shared::RuntimeInternals {
         &self.internals.shared

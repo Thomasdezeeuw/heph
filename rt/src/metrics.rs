@@ -1,4 +1,8 @@
 //! Runtime metrics.
+//!
+//! See [`SharedMetrics`] and [`RuntimeRef::shared_metrics`].
+//!
+//! [`RuntimeRef::shared_metrics`]: crate::RuntimeRef::shared_metrics
 
 use std::time::{Duration, Instant};
 
