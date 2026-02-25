@@ -190,7 +190,7 @@ pub use error::Error;
 pub use setup::Setup;
 
 use info::Info;
-use metrics::SharedMetrics;
+use metrics::{LocalMetrics, SharedMetrics};
 use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
@@ -557,6 +557,16 @@ impl RuntimeRef {
     /// metrics.
     pub fn shared_metrics(&self) -> SharedMetrics {
         self.shared().metrics()
+    }
+
+    /// Get metrics about the local parts of the runtime, such as thread-local
+    /// actors.
+    ///
+    /// These metrics are different depending on what worker thread this is
+    /// called. See [`RuntimeRef::shared_metrics`] for metrics about the shared
+    /// part of the runtime.
+    pub fn local_metrics(&self) -> LocalMetrics {
+        self.internals.metrics()
     }
 
     /// Returns a reference to the shared internals.
