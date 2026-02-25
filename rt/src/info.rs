@@ -11,6 +11,10 @@ use std::{fmt, io, mem, process};
 use crate::syscall;
 
 /// Info about the runtime and it's running environment.
+///
+/// Created by calling [`RuntimeRef::info`].
+///
+/// [`RuntimeRef::info`]: crate::RuntimeRef::info
 #[derive(Debug)]
 pub struct Info {
     host_release: Box<str>,

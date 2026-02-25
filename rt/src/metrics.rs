@@ -15,6 +15,10 @@ use crate::cpu_usage;
 /// This includes metrics about thread-safe actors and anything that is shared
 /// between worker threads. For metrics for thread-local actors and anything
 /// worker thread specific see [`LocalMetrics`].
+///
+/// Created by calling [`RuntimeRef::shared_metrics`].
+///
+/// [`RuntimeRef::shared_metrics`]: crate::RuntimeRef::shared_metrics
 #[derive(Debug)]
 pub struct SharedMetrics {
     /// Time when the runtime started.
@@ -66,6 +70,10 @@ impl SharedMetrics {
 /// Local metrics for a worker thread.
 ///
 /// This include information about thread-local actors.
+///
+/// Created by calling [`RuntimeRef::local_metrics`].
+///
+/// [`RuntimeRef::local_metrics`]: crate::RuntimeRef::local_metrics
 #[derive(Debug)]
 pub struct LocalMetrics {
     pub(crate) scheduler_ready: usize,
