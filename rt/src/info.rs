@@ -1,4 +1,8 @@
-//! Host machine information.
+//! Runtime information and the environment it's running in.
+//!
+//! See [`Info`] and [`RuntimeRef::info`].
+//!
+//! [`RuntimeRef::info`]: crate::RuntimeRef::info
 
 use std::ffi::CStr;
 use std::{fmt, io, mem};
@@ -7,7 +11,7 @@ use crate::syscall;
 
 /// Info about the runtime and it's running environment.
 #[derive(Debug)]
-pub(crate) struct Info {
+pub struct Info {
     host_release: Box<str>,
     host_id: Uuid,
     host_name: Box<str>,
@@ -33,12 +37,12 @@ impl Info {
     }
 
     /// Version of the Heph-rt crate.
-    pub(crate) fn heph_rt_version(&self) -> &str {
+    pub fn heph_rt_version(&self) -> &str {
         concat!("v", env!("CARGO_PKG_VERSION"))
     }
 
     /// OS name.
-    pub(crate) fn host_os(&self) -> &str {
+    pub fn host_os(&self) -> &str {
         // We could also use `std::env::consts::OS`, but this looks better.
         cfg_select! {
             target_os = "linux" => "GNU/Linux",
@@ -48,27 +52,31 @@ impl Info {
     }
 
     /// Host architecture.
-    pub(crate) fn host_arch(&self) -> &str {
+    pub fn host_arch(&self) -> &str {
         std::env::consts::ARCH
     }
 
     /// OS version.
-    pub(crate) fn host_release(&self) -> &str {
+    pub fn host_release(&self) -> &str {
         &*self.host_release
     }
 
     /// Id of the host.
-    pub(crate) fn host_id(&self) -> Uuid {
+    pub fn host_id(&self) -> Uuid {
         self.host_id
     }
 
     /// Name of the host.
-    pub(crate) fn host_name(&self) -> &str {
+    pub fn host_name(&self) -> &str {
         &*self.host_name
     }
 
     /// Name of the application.
-    pub(crate) fn app_name(&self) -> &str {
+    ///
+    /// As passed to [`Setup::with_name`].
+    ///
+    /// [`Setup::with_name`]: crate::Setup::with_name
+    pub fn app_name(&self) -> &str {
         &*self.app_name
     }
 }
@@ -78,7 +86,7 @@ impl Info {
 /// [RFC 4122]: https://datatracker.ietf.org/doc/html/rfc4122
 #[derive(Copy, Clone)]
 #[allow(clippy::doc_markdown)]
-pub(crate) struct Uuid(u128);
+pub struct Uuid(u128);
 
 impl fmt::Display for Uuid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -96,7 +104,7 @@ impl fmt::Debug for Uuid {
 /// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
 /// FreeBSD.
 #[cfg(any(target_os = "freebsd", target_os = "linux"))]
-pub(crate) fn host_id() -> io::Result<Uuid> {
+fn host_id() -> io::Result<Uuid> {
     use std::fs::File;
     use std::io::Read;
 
@@ -195,7 +203,7 @@ const fn from_hex_byte(b: u8) -> Result<u8, ()> {
 
 /// Gets the host id by calling `gethostuuid` on macOS.
 #[cfg(target_os = "macos")]
-pub(crate) fn host_id() -> io::Result<Uuid> {
+fn host_id() -> io::Result<Uuid> {
     let mut bytes = [0; 16];
     let timeout = libc::timespec {
         tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.

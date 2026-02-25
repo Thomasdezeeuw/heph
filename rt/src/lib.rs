@@ -159,7 +159,7 @@ mod error;
 pub mod extract;
 pub mod fd;
 pub mod fs;
-mod info;
+pub mod info;
 pub mod io;
 mod local;
 pub mod log;
