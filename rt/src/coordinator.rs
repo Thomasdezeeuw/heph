@@ -15,7 +15,6 @@
 //! [worker threads]: crate::worker
 //! [sync worker threads]: crate::sync_worker
 
-use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -27,7 +26,7 @@ use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::bitmap::{self, AtomicBitMap};
-use crate::info::{self, Uuid};
+use crate::info::Info;
 use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
@@ -54,16 +53,14 @@ pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
         }
     };
 
-    let (host_os, host_name) = info::host()?;
-    let host_id = info::host_id()?;
+    let info = Info::new(app_name).map_err(|err| {
+        io::Error::new(err.kind(), format!("failed to get OS information: {err}"))
+    })?;
 
     Ok(Setup {
         ring,
         signals,
-        app_name,
-        host_os,
-        host_name,
-        host_id,
+        info,
     })
 }
 
@@ -72,10 +69,7 @@ pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
 pub(crate) struct Setup {
     ring: a10::Ring,
     signals: ReceiveSignals,
-    app_name: Box<str>,
-    host_os: Box<str>,
-    host_name: Box<str>,
-    host_id: Uuid,
+    info: Info,
 }
 
 impl Setup {
@@ -117,10 +111,7 @@ impl Setup {
             check,
             trace_log,
             start: Instant::now(),
-            app_name: self.app_name,
-            host_os: self.host_os,
-            host_name: self.host_name,
-            host_id: self.host_id,
+            info: self.info,
         }
     }
 }
@@ -149,17 +140,9 @@ pub(crate) struct Coordinator {
     check: Arc<AtomicBitMap>,
     /// Trace log for the coordinator.
     trace_log: Option<trace::CoordinatorLog>,
-    // Data used in [`Coordinator::log_metrics`].
     /// Time when the coordinator start running.
     start: Instant,
-    /// Name of the application.
-    app_name: Box<str>,
-    /// OS name and version, from `uname(2)`.
-    host_os: Box<str>,
-    /// Name of the host, `nodename` field from `uname(2)`.
-    host_name: Box<str>,
-    /// Id of the host.
-    host_id: Uuid,
+    info: Info,
 }
 
 impl Coordinator {
@@ -284,12 +267,13 @@ impl Coordinator {
         let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         log::info!(
             target: "metrics",
-            heph_version = concat!("v", env!("CARGO_PKG_VERSION")),
-            host_os = self.host_os,
-            host_arch = ARCH,
-            host_name = self.host_name,
-            host_id:% = self.host_id,
-            app_name = self.app_name,
+            heph_version = self.info.heph_rt_version(),
+            host_os = self.info.host_os(),
+            host_arch = self.info.host_arch(),
+            host_release = self.info.host_release(),
+            host_name = self.info.host_name(),
+            host_id:% = self.info.host_id(),
+            app_name = self.info.app_name(),
             process_id = std::process::id(),
             parent_process_id = parent_id(),
             uptime:? = self.start.elapsed(),

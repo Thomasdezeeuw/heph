@@ -1,35 +1,81 @@
 //! Host machine information.
 
+use std::env::consts::ARCH;
 use std::ffi::CStr;
 use std::{fmt, io, mem};
 
 use crate::syscall;
 
-/// Returns (OS name and version, hostname).
-///
-/// Uses `uname(2)`.
-pub(crate) fn host() -> io::Result<(Box<str>, Box<str>)> {
-    // We could also use `std::env::consts::OS`, but this looks better.
-    const OS: &str = cfg_select! {
-        target_os = "linux" => "GNU/Linux",
-        target_os = "freebsd" => "FreeBSD",
-        target_os = "macos" => "macOS",
-    };
+// We could also use `std::env::consts::OS`, but this looks better.
+const OS: &str = cfg_select! {
+    target_os = "linux" => "GNU/Linux",
+    target_os = "freebsd" => "FreeBSD",
+    target_os = "macos" => "macOS",
+};
 
-    let mut uname_info: libc::utsname = unsafe { mem::zeroed() };
-    _ = syscall!(uname(&raw mut uname_info)).map_err(|err| {
-        io::Error::new(err.kind(), format!("failed to get OS information: {err}"))
-    })?;
+const HEPH_RT_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
-    // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
-    let sysname = unsafe { CStr::from_ptr(uname_info.sysname.as_ptr().cast()).to_string_lossy() };
-    let release = unsafe { CStr::from_ptr(uname_info.release.as_ptr().cast()).to_string_lossy() };
-    let version = unsafe { CStr::from_ptr(uname_info.version.as_ptr().cast()).to_string_lossy() };
-    let nodename = unsafe { CStr::from_ptr(uname_info.nodename.as_ptr().cast()).to_string_lossy() };
+/// Info about the runtime and it's running environment.
+#[derive(Debug)]
+pub(crate) struct Info {
+    host_release: Box<str>,
+    host_id: Uuid,
+    host_name: Box<str>,
+    app_name: Box<str>,
+}
 
-    let os = format!("{OS} ({sysname} {release} {version})").into_boxed_str();
-    let hostname = nodename.into_owned().into_boxed_str();
-    Ok((os, hostname))
+impl Info {
+    pub(crate) fn new(app_name: Box<str>) -> io::Result<Info> {
+        let mut info: libc::utsname = unsafe { mem::zeroed() };
+        _ = syscall!(uname(&raw mut info))?;
+        // SAFETY: call to `uname(2)` above ensures `info` is initialised.
+        let sysname = unsafe { CStr::from_ptr(info.sysname.as_ptr().cast()).to_string_lossy() };
+        let release = unsafe { CStr::from_ptr(info.release.as_ptr().cast()).to_string_lossy() };
+        let version = unsafe { CStr::from_ptr(info.version.as_ptr().cast()).to_string_lossy() };
+        let nodename = unsafe { CStr::from_ptr(info.nodename.as_ptr().cast()).to_string_lossy() };
+        let host_id = host_id()?;
+        Ok(Info {
+            app_name,
+            host_release: format!("{sysname} {release} {version}").into(),
+            host_id,
+            host_name: nodename.into(),
+        })
+    }
+
+    /// Version of the Heph-rt crate.
+    pub(crate) fn heph_rt_version(&self) -> &str {
+        HEPH_RT_VERSION
+    }
+
+    /// OS name.
+    pub(crate) fn host_os(&self) -> &str {
+        OS
+    }
+
+    /// Host architecture.
+    pub(crate) fn host_arch(&self) -> &str {
+        ARCH
+    }
+
+    /// OS version.
+    pub(crate) fn host_release(&self) -> &str {
+        &*self.host_release
+    }
+
+    /// Id of the host.
+    pub(crate) fn host_id(&self) -> Uuid {
+        self.host_id
+    }
+
+    /// Name of the host.
+    pub(crate) fn host_name(&self) -> &str {
+        &*self.host_name
+    }
+
+    /// Name of the application.
+    pub(crate) fn app_name(&self) -> &str {
+        &*self.app_name
+    }
 }
 
 /// Universally Unique IDentifier (UUID), see [RFC 4122].
@@ -160,13 +206,6 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
         tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.
         tv_nsec: 0,
     };
-    if unsafe { libc::gethostuuid(bytes.as_mut_ptr(), &timeout) } == -1 {
-        let os_err = io::Error::last_os_error();
-        Err(io::Error::new(
-            os_err.kind(),
-            format!("failed to get host id: {os_err}"),
-        ))
-    } else {
-        Ok(Uuid(u128::from_be_bytes(bytes)))
-    }
+    _ = syscall!(gethostuuid(bytes.as_mut_ptr(), &timeout))?;
+    Ok(Uuid(u128::from_be_bytes(bytes)))
 }
