@@ -27,7 +27,7 @@ use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::bitmap::{self, AtomicBitMap};
-use crate::host::{self, Uuid};
+use crate::info::{self, Uuid};
 use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
@@ -54,8 +54,8 @@ pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
         }
     };
 
-    let (host_os, host_name) = host::info()?;
-    let host_id = host::id()?;
+    let (host_os, host_name) = info::host()?;
+    let host_id = info::host_id()?;
 
     Ok(Setup {
         ring,

@@ -13,7 +13,9 @@ use crate::access::Access;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
-use crate::net::{Domain, SocketAddress, option};
+#[cfg(any(target_os = "android", target_os = "linux"))]
+use crate::net::option;
+use crate::net::{Domain, SocketAddress};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
 use crate::{process, syscall};

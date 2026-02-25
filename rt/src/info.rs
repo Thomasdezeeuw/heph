@@ -8,7 +8,7 @@ use crate::syscall;
 /// Returns (OS name and version, hostname).
 ///
 /// Uses `uname(2)`.
-pub(crate) fn info() -> io::Result<(Box<str>, Box<str>)> {
+pub(crate) fn host() -> io::Result<(Box<str>, Box<str>)> {
     // We could also use `std::env::consts::OS`, but this looks better.
     const OS: &str = cfg_select! {
         target_os = "linux" => "GNU/Linux",
@@ -55,7 +55,7 @@ impl fmt::Debug for Uuid {
 /// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
 /// FreeBSD.
 #[cfg(any(target_os = "freebsd", target_os = "linux"))]
-pub(crate) fn id() -> io::Result<Uuid> {
+pub(crate) fn host_id() -> io::Result<Uuid> {
     use std::fs::File;
     use std::io::Read;
 
@@ -154,7 +154,7 @@ const fn from_hex_byte(b: u8) -> Result<u8, ()> {
 
 /// Gets the host id by calling `gethostuuid` on macOS.
 #[cfg(target_os = "macos")]
-pub(crate) fn id() -> io::Result<Uuid> {
+pub(crate) fn host_id() -> io::Result<Uuid> {
     let mut bytes = [0; 16];
     let timeout = libc::timespec {
         tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.
