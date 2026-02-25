@@ -13,6 +13,7 @@ use heph::{ActorFutureBuilder, NewActor};
 
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
+use crate::metrics::SharedMetrics;
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
@@ -26,6 +27,8 @@ use crate::{ThreadSafe, trace};
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
+    /// Time when the runtime was started.
+    start: Instant,
     /// Environmental info.
     info: Info,
     /// I/O ring.
@@ -51,15 +54,6 @@ pub(crate) struct RuntimeInternals {
     worker_shutdown: OnceLock<Arc<AtomicBitMap>>,
 }
 
-/// Metrics for [`RuntimeInternals`].
-#[derive(Debug)]
-pub(crate) struct Metrics {
-    pub(crate) scheduler_ready: usize,
-    pub(crate) scheduler_inactive: usize,
-    pub(crate) timers_total: usize,
-    pub(crate) timers_next: Option<Duration>,
-}
-
 impl RuntimeInternals {
     /// Create new runtime internals.
     pub(crate) fn new(
@@ -67,6 +61,7 @@ impl RuntimeInternals {
         coordinator_sq: a10::SubmissionQueue,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Arc<RuntimeInternals>> {
+        let start = Instant::now();
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
         let config = config.attach_queue(&coordinator_sq);
@@ -77,6 +72,7 @@ impl RuntimeInternals {
         Ok(Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             RuntimeInternals {
+                start,
                 info,
                 ring: Mutex::new(ring),
                 sq,
@@ -95,12 +91,14 @@ impl RuntimeInternals {
     }
 
     /// Returns metrics about the shared scheduler and timers.
-    pub(crate) fn metrics(&self) -> Metrics {
-        Metrics {
+    pub(crate) fn metrics(&self) -> SharedMetrics {
+        SharedMetrics {
+            start: self.start,
             scheduler_ready: self.scheduler.ready(),
             scheduler_inactive: self.scheduler.inactive(),
-            timers_total: self.timers.len(),
+            timers: self.timers.len(),
             timers_next: self.timers.next_timer(),
+            trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
         }
     }
 

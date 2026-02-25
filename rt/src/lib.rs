@@ -163,6 +163,7 @@ pub mod info;
 pub mod io;
 mod local;
 pub mod log;
+mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;

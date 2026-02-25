@@ -18,7 +18,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{fmt, io};
 
 use a10::process::{ReceiveSignals, Signals};
@@ -99,7 +99,6 @@ impl Setup {
             signal_refs,
             check,
             trace_log,
-            start: Instant::now(),
         }
     }
 }
@@ -128,14 +127,11 @@ pub(crate) struct Coordinator {
     check: Arc<AtomicBitMap>,
     /// Trace log for the coordinator.
     trace_log: Option<trace::CoordinatorLog>,
-    /// Time when the coordinator start running.
-    start: Instant,
 }
 
 impl Coordinator {
     /// Run the coordinator.
     pub(crate) fn run(mut self) -> Result<(), rt::Error> {
-        self.start = Instant::now();
         // Signal to all worker threads the runtime was started. See
         // `local::RuntimeInternals::started` why this is needed.
         log::debug!("signaling to workers the runtime started");
@@ -252,7 +248,6 @@ impl Coordinator {
         let timing = trace::start(&self.trace_log);
         let info = self.internals.info();
         let shared_metrics = self.internals.metrics();
-        let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         log::info!(
             target: "metrics",
             heph_version = info.heph_rt_version(),
@@ -264,19 +259,18 @@ impl Coordinator {
             app_name = info.app_name(),
             process_id = info.process_id(),
             parent_process_id = info.parent_process_id(),
-            uptime:? = self.start.elapsed(),
+            uptime:? = shared_metrics.uptime(),
             worker_threads = self.workers.len(),
             sync_actors = self.sync_workers.len(),
-            shared_scheduler_ready = shared_metrics.scheduler_ready,
-            shared_scheduler_inactive = shared_metrics.scheduler_inactive,
-            shared_timers_total = shared_metrics.timers_total,
-            shared_timers_next:? = shared_metrics.timers_next,
+            shared_scheduler_ready = shared_metrics.scheduler_ready(),
+            shared_scheduler_inactive = shared_metrics.scheduler_inactive(),
+            shared_timers = shared_metrics.timers(),
+            shared_timers_next:? = shared_metrics.timers_next(),
             process_signals:? = self.signals.set(),
             process_signal_receivers = self.signal_refs.len(),
             cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
-            total_cpu_time:? = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID),
-            trace_file:? = trace_metrics.as_ref().map(|m| m.file),
-            trace_counter = trace_metrics.map_or(0, |m| m.counter);
+            total_cpu_time:? = shared_metrics.total_cpu_time(),
+            trace_counter = shared_metrics.trace_counter();
             "coordinator metrics",
         );
         trace::finish_rt(

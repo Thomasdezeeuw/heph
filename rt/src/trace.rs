@@ -165,13 +165,6 @@ pub(crate) struct CoordinatorLog {
     buf: Vec<u8>,
 }
 
-/// Metrics for [`CoordinatorLog`].
-#[derive(Debug)]
-pub(crate) struct CoordinatorMetrics<'l> {
-    pub(crate) file: &'l File,
-    pub(crate) counter: u32,
-}
-
 impl CoordinatorLog {
     /// Open a new trace log.
     pub(crate) fn open(path: &Path) -> io::Result<CoordinatorLog> {
@@ -200,14 +193,6 @@ impl CoordinatorLog {
             }),
             buf: Vec::with_capacity(BUF_SIZE),
         })
-    }
-
-    /// Gather metrics for the coordinator log.
-    pub(crate) fn metrics<'l>(&'l self) -> CoordinatorMetrics<'l> {
-        CoordinatorMetrics {
-            file: &self.shared.file,
-            counter: self.shared.counter.load(atomic::Ordering::Relaxed),
-        }
     }
 
     /// Create a new stream with `stream_id`, writing to the same file.
@@ -253,6 +238,10 @@ impl SharedLog {
             stream_counter: 0,
             buf: Vec::with_capacity(BUF_SIZE),
         }
+    }
+
+    pub(crate) fn counter(&self) -> u32 {
+        self.counter.load(atomic::Ordering::Relaxed)
     }
 }
 
