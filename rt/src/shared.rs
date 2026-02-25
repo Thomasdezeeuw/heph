@@ -25,7 +25,7 @@ use crate::{ThreadSafe, trace};
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
-    /// io_uring completion ring.
+    /// I/O ring.
     ring: Mutex<a10::Ring>,
     /// Submission queue for the `ring`.
     sq: a10::SubmissionQueue,
@@ -103,16 +103,16 @@ impl RuntimeInternals {
         self.ring.lock().unwrap().pollable(sq)
     }
 
-    /// Polls the io_uring completion ring if it's currently not being polled.
+    /// Polls the completion ring if it's currently not being polled.
     pub(crate) fn try_poll_ring(&self) -> io::Result<()> {
         match self.ring.try_lock() {
             Ok(mut ring) => ring.poll(Some(Duration::ZERO)),
             Err(TryLockError::WouldBlock) => Ok(()),
-            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared io_uring: {err}"),
+            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O ring: {err}"),
         }
     }
 
-    /// Returns the io_uring submission queue.
+    /// Returns the submission queue.
     pub(crate) const fn sq(&self) -> &a10::SubmissionQueue {
         &self.sq
     }

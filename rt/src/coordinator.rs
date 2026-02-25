@@ -119,7 +119,7 @@ impl Setup {
 /// Coordinator responsible for coordinating the Heph runtime.
 #[derive(Debug)]
 pub(crate) struct Coordinator {
-    /// io_uring completion ring.
+    /// I/O ring.
     ring: a10::Ring,
     /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,

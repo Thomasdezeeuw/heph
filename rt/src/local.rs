@@ -21,7 +21,7 @@ pub(crate) struct RuntimeInternals {
     pub(crate) shared: Arc<shared::RuntimeInternals>,
     /// Scheduler for thread-local actors.
     pub(crate) scheduler: RefCell<Scheduler>,
-    /// io_uring completion ring.
+    /// I/O ring.
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,
