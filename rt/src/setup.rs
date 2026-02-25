@@ -142,12 +142,12 @@ impl Setup {
         // Setup the coordinator, but we can't fully construct Coordinator until
         // we spawned all synchronous actors (which is done using the returned
         // Runtime).
-        let coordinator_setup = coordinator::setup(name).map_err(Error::init_coordinator)?;
+        let coordinator_setup = coordinator::setup().map_err(Error::init_coordinator)?;
         let coordinator_sq = coordinator_setup.sq();
 
         // Create the internal data structure shared by all threads.
         let shared_log = trace_log.as_ref().map(trace::CoordinatorLog::clone_shared);
-        let internals = shared::RuntimeInternals::new(coordinator_sq, shared_log)
+        let internals = shared::RuntimeInternals::new(name, coordinator_sq, shared_log)
             .map_err(Error::init_coordinator)?;
 
         // Spawn the worker threads.

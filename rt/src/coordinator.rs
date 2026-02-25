@@ -15,7 +15,6 @@
 //! [worker threads]: crate::worker
 //! [sync worker threads]: crate::sync_worker
 
-use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -27,7 +26,6 @@ use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::bitmap::{self, AtomicBitMap};
-use crate::host::{self, Uuid};
 use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
@@ -36,7 +34,7 @@ use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 ///
 /// This must be called before creating the worker threads to properly catch
 /// process signals.
-pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
+pub(crate) fn setup() -> io::Result<Setup> {
     let config = a10::Ring::config();
     #[cfg(any(target_os = "android", target_os = "linux"))]
     let config = config.single_issuer().defer_task_run();
@@ -54,17 +52,7 @@ pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
         }
     };
 
-    let (host_os, host_name) = host::info()?;
-    let host_id = host::id()?;
-
-    Ok(Setup {
-        ring,
-        signals,
-        app_name,
-        host_os,
-        host_name,
-        host_id,
-    })
+    Ok(Setup { ring, signals })
 }
 
 /// Setup of a [`Coordinator`].
@@ -72,10 +60,6 @@ pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
 pub(crate) struct Setup {
     ring: a10::Ring,
     signals: ReceiveSignals,
-    app_name: Box<str>,
-    host_os: Box<str>,
-    host_name: Box<str>,
-    host_id: Uuid,
 }
 
 impl Setup {
@@ -117,10 +101,6 @@ impl Setup {
             check,
             trace_log,
             start: Instant::now(),
-            app_name: self.app_name,
-            host_os: self.host_os,
-            host_name: self.host_name,
-            host_id: self.host_id,
         }
     }
 }
@@ -128,7 +108,7 @@ impl Setup {
 /// Coordinator responsible for coordinating the Heph runtime.
 #[derive(Debug)]
 pub(crate) struct Coordinator {
-    /// io_uring completion ring.
+    /// I/O ring.
     ring: a10::Ring,
     /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,
@@ -149,17 +129,8 @@ pub(crate) struct Coordinator {
     check: Arc<AtomicBitMap>,
     /// Trace log for the coordinator.
     trace_log: Option<trace::CoordinatorLog>,
-    // Data used in [`Coordinator::log_metrics`].
     /// Time when the coordinator start running.
     start: Instant,
-    /// Name of the application.
-    app_name: Box<str>,
-    /// OS name and version, from `uname(2)`.
-    host_os: Box<str>,
-    /// Name of the host, `nodename` field from `uname(2)`.
-    host_name: Box<str>,
-    /// Id of the host.
-    host_id: Uuid,
 }
 
 impl Coordinator {
@@ -280,16 +251,18 @@ impl Coordinator {
     /// Log metrics about the coordinator and runtime.
     fn log_metrics(&mut self) {
         let timing = trace::start(&self.trace_log);
+        let info = self.internals.info();
         let shared_metrics = self.internals.metrics();
         let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         log::info!(
             target: "metrics",
-            heph_version = concat!("v", env!("CARGO_PKG_VERSION")),
-            host_os = self.host_os,
-            host_arch = ARCH,
-            host_name = self.host_name,
-            host_id:% = self.host_id,
-            app_name = self.app_name,
+            heph_version = info.heph_rt_version(),
+            host_os = info.host_os(),
+            host_arch = info.host_arch(),
+            host_release = info.host_release(),
+            host_name = info.host_name(),
+            host_id:% = info.host_id(),
+            app_name = info.app_name(),
             process_id = std::process::id(),
             parent_process_id = parent_id(),
             uptime:? = self.start.elapsed(),

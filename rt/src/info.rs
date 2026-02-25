@@ -1,35 +1,84 @@
-//! Host machine information.
+//! Runtime information and the environment it's running in.
+//!
+//! See [`Info`] and [`RuntimeRef::info`].
+//!
+//! [`RuntimeRef::info`]: crate::RuntimeRef::info
 
 use std::ffi::CStr;
 use std::{fmt, io, mem};
 
 use crate::syscall;
 
-/// Returns (OS name and version, hostname).
-///
-/// Uses `uname(2)`.
-pub(crate) fn info() -> io::Result<(Box<str>, Box<str>)> {
-    // We could also use `std::env::consts::OS`, but this looks better.
-    const OS: &str = cfg_select! {
-        target_os = "linux" => "GNU/Linux",
-        target_os = "freebsd" => "FreeBSD",
-        target_os = "macos" => "macOS",
-    };
+/// Info about the runtime and it's running environment.
+#[derive(Debug)]
+pub struct Info {
+    host_release: Box<str>,
+    host_id: Uuid,
+    host_name: Box<str>,
+    app_name: Box<str>,
+}
 
-    let mut uname_info: libc::utsname = unsafe { mem::zeroed() };
-    _ = syscall!(uname(&raw mut uname_info)).map_err(|err| {
-        io::Error::new(err.kind(), format!("failed to get OS information: {err}"))
-    })?;
+impl Info {
+    pub(crate) fn new(app_name: Box<str>) -> io::Result<Info> {
+        let mut info: libc::utsname = unsafe { mem::zeroed() };
+        _ = syscall!(uname(&raw mut info))?;
+        // SAFETY: call to `uname(2)` above ensures `info` is initialised.
+        let sysname = unsafe { CStr::from_ptr(info.sysname.as_ptr().cast()).to_string_lossy() };
+        let release = unsafe { CStr::from_ptr(info.release.as_ptr().cast()).to_string_lossy() };
+        let version = unsafe { CStr::from_ptr(info.version.as_ptr().cast()).to_string_lossy() };
+        let nodename = unsafe { CStr::from_ptr(info.nodename.as_ptr().cast()).to_string_lossy() };
+        let host_id = host_id()?;
+        Ok(Info {
+            app_name,
+            host_release: format!("{sysname} {release} {version}").into(),
+            host_id,
+            host_name: nodename.into(),
+        })
+    }
 
-    // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
-    let sysname = unsafe { CStr::from_ptr(uname_info.sysname.as_ptr().cast()).to_string_lossy() };
-    let release = unsafe { CStr::from_ptr(uname_info.release.as_ptr().cast()).to_string_lossy() };
-    let version = unsafe { CStr::from_ptr(uname_info.version.as_ptr().cast()).to_string_lossy() };
-    let nodename = unsafe { CStr::from_ptr(uname_info.nodename.as_ptr().cast()).to_string_lossy() };
+    /// Version of the Heph-rt crate.
+    pub fn heph_rt_version(&self) -> &str {
+        concat!("v", env!("CARGO_PKG_VERSION"))
+    }
 
-    let os = format!("{OS} ({sysname} {release} {version})").into_boxed_str();
-    let hostname = nodename.into_owned().into_boxed_str();
-    Ok((os, hostname))
+    /// OS name.
+    pub fn host_os(&self) -> &str {
+        // We could also use `std::env::consts::OS`, but this looks better.
+        cfg_select! {
+            target_os = "linux" => "GNU/Linux",
+            target_os = "freebsd" => "FreeBSD",
+            target_os = "macos" => "macOS",
+        }
+    }
+
+    /// Host architecture.
+    pub fn host_arch(&self) -> &str {
+        std::env::consts::ARCH
+    }
+
+    /// OS version.
+    pub fn host_release(&self) -> &str {
+        &*self.host_release
+    }
+
+    /// Id of the host.
+    pub fn host_id(&self) -> Uuid {
+        self.host_id
+    }
+
+    /// Name of the host.
+    pub fn host_name(&self) -> &str {
+        &*self.host_name
+    }
+
+    /// Name of the application.
+    ///
+    /// As passed to [`Setup::with_name`].
+    ///
+    /// [`Setup::with_name`]: crate::Setup::with_name
+    pub fn app_name(&self) -> &str {
+        &*self.app_name
+    }
 }
 
 /// Universally Unique IDentifier (UUID), see [RFC 4122].
@@ -37,7 +86,7 @@ pub(crate) fn info() -> io::Result<(Box<str>, Box<str>)> {
 /// [RFC 4122]: https://datatracker.ietf.org/doc/html/rfc4122
 #[derive(Copy, Clone)]
 #[allow(clippy::doc_markdown)]
-pub(crate) struct Uuid(u128);
+pub struct Uuid(u128);
 
 impl fmt::Display for Uuid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -55,7 +104,7 @@ impl fmt::Debug for Uuid {
 /// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
 /// FreeBSD.
 #[cfg(any(target_os = "freebsd", target_os = "linux"))]
-pub(crate) fn id() -> io::Result<Uuid> {
+fn host_id() -> io::Result<Uuid> {
     use std::fs::File;
     use std::io::Read;
 
@@ -154,19 +203,12 @@ const fn from_hex_byte(b: u8) -> Result<u8, ()> {
 
 /// Gets the host id by calling `gethostuuid` on macOS.
 #[cfg(target_os = "macos")]
-pub(crate) fn id() -> io::Result<Uuid> {
+fn host_id() -> io::Result<Uuid> {
     let mut bytes = [0; 16];
     let timeout = libc::timespec {
         tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.
         tv_nsec: 0,
     };
-    if unsafe { libc::gethostuuid(bytes.as_mut_ptr(), &timeout) } == -1 {
-        let os_err = io::Error::last_os_error();
-        Err(io::Error::new(
-            os_err.kind(),
-            format!("failed to get host id: {os_err}"),
-        ))
-    } else {
-        Ok(Uuid(u128::from_be_bytes(bytes)))
-    }
+    _ = syscall!(gethostuuid(bytes.as_mut_ptr(), &timeout))?;
+    Ok(Uuid(u128::from_be_bytes(bytes)))
 }
