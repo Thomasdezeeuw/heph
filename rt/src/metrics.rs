@@ -6,8 +6,9 @@ use crate::cpu_usage;
 
 /// Shared metrics.
 ///
-/// This includes metrics about thread-safe actors, synchronous actors. For
-/// metrics for thread-local actors ee [`LocalMetrics`].
+/// This includes metrics about thread-safe actors and anything that is shared
+/// between worker threads. For metrics for thread-local actors and anything
+/// worker thread specific see [`LocalMetrics`].
 #[derive(Debug)]
 pub struct SharedMetrics {
     /// Time when the runtime started.

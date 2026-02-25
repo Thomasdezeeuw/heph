@@ -163,7 +163,7 @@ pub mod info;
 pub mod io;
 mod local;
 pub mod log;
-mod metrics;
+pub mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;
@@ -190,6 +190,7 @@ pub use error::Error;
 pub use setup::Setup;
 
 use info::Info;
+use metrics::SharedMetrics;
 use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
