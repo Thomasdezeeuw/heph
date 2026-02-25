@@ -12,6 +12,7 @@ use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
 
 use crate::bitmap::AtomicBitMap;
+use crate::info::Info;
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
@@ -25,6 +26,8 @@ use crate::{ThreadSafe, trace};
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
+    /// Environmental info.
+    info: Info,
     /// I/O ring.
     ring: Mutex<a10::Ring>,
     /// Submission queue for the `ring`.
@@ -60,6 +63,7 @@ pub(crate) struct Metrics {
 impl RuntimeInternals {
     /// Create new runtime internals.
     pub(crate) fn new(
+        app_name: Box<str>,
         coordinator_sq: a10::SubmissionQueue,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Arc<RuntimeInternals>> {
@@ -68,10 +72,12 @@ impl RuntimeInternals {
         let config = config.attach_queue(&coordinator_sq);
         let ring = config.build()?;
         let sq = ring.sq();
+        let info = Info::new(app_name)?;
 
         Ok(Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             RuntimeInternals {
+                info,
                 ring: Mutex::new(ring),
                 sq,
                 wakers,
@@ -82,6 +88,10 @@ impl RuntimeInternals {
                 worker_shutdown: OnceLock::new(),
             }
         }))
+    }
+
+    pub(crate) fn info(&self) -> &Info {
+        &self.info
     }
 
     /// Returns metrics about the shared scheduler and timers.

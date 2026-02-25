@@ -7,7 +7,7 @@ mod shared {
     use std::time::Duration;
 
     use crate::scheduler::process::{self, ProcessId};
-    use crate::shared::RuntimeInternals;
+    use crate::shared;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
 
@@ -149,8 +149,8 @@ mod shared {
         assert!(waker2a.will_wake(&waker2b));
     }
 
-    pub(super) fn new_internals() -> Arc<RuntimeInternals> {
-        RuntimeInternals::new(noop_waker(), None).unwrap()
+    pub(super) fn new_internals() -> Arc<shared::RuntimeInternals> {
+        shared::RuntimeInternals::new("Testing".into(), noop_waker(), None).unwrap()
     }
 
     fn noop_waker() -> a10::SubmissionQueue {
