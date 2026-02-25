@@ -188,7 +188,8 @@ pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
 pub use setup::Setup;
 
-use crate::scheduler::process::FutureProcess;
+use info::Info;
+use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.
@@ -539,6 +540,11 @@ impl RuntimeRef {
             .signal_receivers
             .borrow_mut()
             .add_unique(actor_ref);
+    }
+
+    /// Get information about the runtime and the environment it's running in.
+    pub fn info(&self) -> &Info {
+        self.shared().info()
     }
 
     /// Returns a reference to the shared internals.
