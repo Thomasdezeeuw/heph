@@ -42,3 +42,5 @@ pub trait PersistentActor: RestartableActor {
     /// while the actor is being polled.
     fn state(&mut self, actor: &mut Self::Actor) -> Self::State;
 }
+
+// TODO: implementations using serde and sqlite3.
