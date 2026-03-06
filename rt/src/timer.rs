@@ -134,7 +134,7 @@ impl<RT: Access> Timer<RT> {
     ///
     /// Same as calling `timer.change_deadline(Instant::now() + timeout)`.
     pub fn change_timeout(&mut self, timeout: Duration) {
-        self.change_deadline(Instant::now() + timeout)
+        self.change_deadline(Instant::now() + timeout);
     }
 
     /// Wrap a future creating a new `Deadline`.
@@ -285,14 +285,14 @@ impl<Fut, RT: Access> Deadline<Fut, RT> {
     ///
     /// The previous timer will not trigger.
     pub fn change_deadline(&mut self, deadline: Instant) {
-        self.timer.change_deadline(deadline)
+        self.timer.change_deadline(deadline);
     }
 
     /// Change the timeout.
     ///
     /// Same as calling `timer.change_deadline(Instant::now() + timeout)`.
     pub fn change_timeout(&mut self, timeout: Duration) {
-        self.timer.change_timeout(timeout)
+        self.timer.change_timeout(timeout);
     }
 
     /// Returns the wrapped future.

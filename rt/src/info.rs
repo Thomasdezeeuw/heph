@@ -35,15 +35,13 @@ impl Info {
         let version = unsafe { CStr::from_ptr(info.version.as_ptr().cast()).to_string_lossy() };
         let nodename = unsafe { CStr::from_ptr(info.nodename.as_ptr().cast()).to_string_lossy() };
         let host_id = host_id()?;
-        let pid = process::id();
-        let ppid = parent_id();
         Ok(Info {
             app_name,
             host_release: format!("{sysname} {release} {version}").into(),
             host_id,
             host_name: nodename.into(),
-            pid,
-            ppid,
+            pid: process::id(),
+            ppid: parent_id(),
         })
     }
 
@@ -69,7 +67,7 @@ impl Info {
 
     /// OS version.
     pub fn host_release(&self) -> &str {
-        &*self.host_release
+        &self.host_release
     }
 
     /// Id of the host.
@@ -79,7 +77,7 @@ impl Info {
 
     /// Name of the host.
     pub fn host_name(&self) -> &str {
-        &*self.host_name
+        &self.host_name
     }
 
     /// Name of the application.
@@ -88,7 +86,7 @@ impl Info {
     ///
     /// [`Setup::with_name`]: crate::Setup::with_name
     pub fn app_name(&self) -> &str {
-        &*self.app_name
+        &self.app_name
     }
 
     /// Id of the process (pid).
@@ -230,6 +228,6 @@ fn host_id() -> io::Result<Uuid> {
         tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.
         tv_nsec: 0,
     };
-    _ = syscall!(gethostuuid(bytes.as_mut_ptr(), &timeout))?;
+    _ = syscall!(gethostuuid(bytes.as_mut_ptr(), &raw const timeout))?;
     Ok(Uuid(u128::from_be_bytes(bytes)))
 }

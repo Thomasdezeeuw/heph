@@ -98,7 +98,6 @@
 #![feature(
     async_iterator,
     box_vec_non_null,
-    cfg_select,
     doc_cfg,
     impl_trait_in_assoc_type,
     maybe_uninit_array_assume_init,
