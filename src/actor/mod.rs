@@ -111,10 +111,12 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+mod callback;
 mod context;
 #[cfg(test)]
-mod tests;
+mod tests; // TODO: better name.
 
+pub use callback::CallbackActor;
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, ReceiveMessages, RecvError};
 
