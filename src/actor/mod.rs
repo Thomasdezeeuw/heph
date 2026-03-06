@@ -112,11 +112,13 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 mod context;
+mod restartable;
 #[cfg(test)]
 mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, ReceiveMessages, RecvError};
+pub use restartable::RestartableActor;
 
 /// Creating asynchronous actors.
 ///
