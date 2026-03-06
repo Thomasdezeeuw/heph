@@ -28,3 +28,17 @@ pub trait RestartableActor: NewActor {
         state: Self::State,
     ) -> Result<Self::Actor, Self::Error>;
 }
+
+/// Actors that can create a persistent state of a running actor.
+pub trait PersistentActor: RestartableActor {
+    /// Returns the current state of the actor.
+    ///
+    /// Similar to [`RestartableActor::stop`], but called while the actor is
+    /// still running (and can be polled after calling this).
+    ///
+    /// # Notes
+    ///
+    /// This may be called with the actor is still actively running, but never
+    /// while the actor is being polled.
+    fn state(&mut self, actor: &mut Self::Actor) -> Self::State;
+}

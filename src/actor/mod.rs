@@ -118,7 +118,7 @@ mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, ReceiveMessages, RecvError};
-pub use restartable::RestartableActor;
+pub use restartable::{PersistentActor, RestartableActor};
 
 /// Creating asynchronous actors.
 ///
