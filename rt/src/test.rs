@@ -127,8 +127,9 @@ fn run_on_test_runtime<F>(f: F)
 where
     F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
 {
-    test_coordinator().workers[0]
-        .send_function(Box::new(f))
+    let worker = &test_coordinator().workers[0];
+    SyncWaker::new()
+        .block_on(worker.send_function_wait(Box::new(f)))
         .expect("failed to communicate with the test runtime");
 }
 

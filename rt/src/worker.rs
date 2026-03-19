@@ -120,6 +120,14 @@ impl Handle {
         self.sys_ref.try_send(Control::Run(f))
     }
 
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) async fn send_function_wait(
+        &self,
+        f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
+    ) -> Result<(), SendError> {
+        self.sys_ref.send(Control::Run(f)).await
+    }
+
     /// See [`thread::JoinHandle::join`].
     pub(crate) fn join(self) -> Result<(), rt::Error> {
         match self.handle.join() {
