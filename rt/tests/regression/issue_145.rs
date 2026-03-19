@@ -9,10 +9,11 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
-use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::{Actor, ActorRef, NewActor};
+use heph::supervisor::NoSupervisor;
+use heph::test::PanicSupervisor;
+use heph::{ActorRef, NewActor};
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{Domain, Server, ServerError, ServerMessage, Type, socket};
+use heph_rt::net::{Domain, Server, ServerMessage, Type, socket};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{Access, Runtime, RuntimeRef, ThreadLocal};
 
@@ -30,12 +31,13 @@ fn issue_145_tcp_server() {
         actor_fn(conn_actor).map_arg(move |stream| (stream, addr2.clone(), srv2.clone()));
     let address = "127.0.0.1:0".parse().unwrap();
     let server = Server::new(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
-    let expected_address = server.local_addr();
+    let expected_address = *server.local_addr();
 
     runtime
         .run_on_workers::<_, !>(move |mut runtime_ref| {
-            let srv_ref =
-                runtime_ref.spawn_local(ServerSupervisor, server, (), ActorOptions::default());
+            let srv_ref = runtime_ref
+                .try_spawn_local(PanicSupervisor, server, (), ActorOptions::default())
+                .unwrap();
             // NOTE: this is not safe or supported. DO NOT USE THIS.
             let r = unsafe { std::mem::transmute_copy::<RuntimeRef, usize>(&runtime_ref) };
             servers.lock().unwrap().push((r, srv_ref));
@@ -64,26 +66,6 @@ fn issue_145_tcp_server() {
     handle.join().unwrap();
     for address in addresses.lock().unwrap().iter() {
         assert_eq!(*address, expected_address);
-    }
-}
-
-struct ServerSupervisor;
-
-impl<L, A> Supervisor<L> for ServerSupervisor
-where
-    L: NewActor<Message = ServerMessage, Argument = (), Actor = A, Error = !>,
-    A: Actor<Error = ServerError<!>>,
-{
-    fn decide(&mut self, _: ServerError<!>) -> SupervisorStrategy<()> {
-        SupervisorStrategy::Stop
-    }
-
-    fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
-        err
-    }
-
-    fn second_restart_error(&mut self, err: !) {
-        err
     }
 }
 
