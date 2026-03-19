@@ -98,11 +98,8 @@
 #![feature(
     async_iterator,
     box_vec_non_null,
-    doc_cfg,
     impl_trait_in_assoc_type,
-    maybe_uninit_array_assume_init,
     never_type,
-    ptr_metadata,
     stmt_expr_attributes
 )]
 #![warn(
