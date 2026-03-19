@@ -1,4 +1,4 @@
-#![feature(async_iterator, never_type, write_all_vectored)]
+#![feature(async_iterator, never_type)]
 
 use std::future::pending;
 use std::sync::Arc;
@@ -10,8 +10,6 @@ use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, SyncActorOptions};
 use heph_rt::{Runtime, process};
 
-#[path = "util/mod.rs"] // rustfmt can't find the file.
-#[macro_use]
 mod util;
 
 use util::send_signal;
@@ -19,6 +17,7 @@ use util::send_signal;
 fn main() {
     no_signal_handlers();
     with_signal_handles();
+    println!("OK.");
 }
 
 /// Runtime without any actor to receive the signal should stop itself.
