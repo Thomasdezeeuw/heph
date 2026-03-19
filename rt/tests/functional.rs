@@ -2,25 +2,35 @@
 
 #![feature(async_iterator, never_type)]
 
-#[path = "util/mod.rs"] // rustfmt can't find the file.
-#[macro_use]
 mod util;
 
-#[path = "functional"] // rustfmt can't find the files.
-mod functional {
-    mod access;
-    mod actor;
-    mod actor_context;
-    mod actor_group;
-    mod actor_ref;
-    mod from_message;
-    mod future;
-    mod pipe;
-    mod restart_supervisor;
-    mod runtime;
-    mod spawn;
-    mod sync_actor;
-    mod tcp_server;
-    mod test;
-    mod timer;
-}
+#[path = "functional/access.rs"]
+mod access;
+#[path = "functional/actor.rs"]
+mod actor;
+#[path = "functional/actor_context.rs"]
+mod actor_context;
+#[path = "functional/actor_group.rs"]
+mod actor_group;
+#[path = "functional/actor_ref.rs"]
+mod actor_ref;
+#[path = "functional/from_message.rs"]
+mod from_message;
+#[path = "functional/future.rs"]
+mod future;
+#[path = "functional/pipe.rs"]
+mod pipe;
+#[path = "functional/restart_supervisor.rs"]
+mod restart_supervisor;
+#[path = "functional/runtime.rs"]
+mod runtime;
+#[path = "functional/spawn.rs"]
+mod spawn;
+#[path = "functional/sync_actor.rs"]
+mod sync_actor;
+#[path = "functional/tcp_server.rs"]
+mod tcp_server;
+#[path = "functional/test.rs"]
+mod test;
+#[path = "functional/timer.rs"]
+mod timer;
