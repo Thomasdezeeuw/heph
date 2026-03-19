@@ -1,3 +1,4 @@
+use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
 use std::marker::PhantomData;
@@ -93,18 +94,19 @@ fn auto_cpu_affinity() {
     impl<S, NA> Supervisor<Server<S, NA>> for ServerSupervisor
     where
         S: Supervisor<NA> + Clone + 'static,
-        NA: NewActor<Argument = AsyncFd, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
+        NA: NewActor<Argument = AsyncFd, RuntimeAccess = ThreadLocal> + Clone + 'static,
+        NA::Error: fmt::Display,
     {
-        fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
+        fn decide(&mut self, err: ServerError<NA::Error>) -> SupervisorStrategy<()> {
             panic!("unexpected error accept stream: {err}");
         }
 
-        fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
-            err
+        fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+            panic!("unexpected restart error: {err}");
         }
 
-        fn second_restart_error(&mut self, err: !) {
-            err
+        fn second_restart_error(&mut self, err: io::Error) {
+            panic!("unexpected second restart error: {err}");
         }
     }
 
@@ -120,9 +122,10 @@ fn auto_cpu_affinity() {
             accepted_stream_actor,
             ActorOptions::default(),
         )?;
-        let address = server.local_addr();
-        let server_ref =
-            runtime_ref.spawn_local(ServerSupervisor, server, (), ActorOptions::default());
+        let address = *server.local_addr();
+        let server_ref = runtime_ref
+            .try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())
+            .unwrap();
 
         let stream_actor = actor_fn(stream_actor);
         let args = (address, server_ref);

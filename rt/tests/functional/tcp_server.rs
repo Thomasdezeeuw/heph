@@ -70,7 +70,7 @@ fn smoke() {
         ActorOptions::default(),
     )
     .unwrap();
-    let server_address = server.local_addr();
+    let server_address = *server.local_addr();
 
     // TCP server should be able to be created outside the setup function and
     // used in it.
@@ -84,7 +84,7 @@ fn smoke() {
     let mut runtime = Runtime::setup().build().unwrap();
     runtime
         .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
-            let server_address = local_server.local_addr();
+            let server_address = *local_server.local_addr();
             // Spawn thread-local version.
             let server_ref = runtime_ref
                 .try_spawn_local(PanicSupervisor, local_server, (), ActorOptions::default())
@@ -248,7 +248,7 @@ fn new_actor_error() {
         ActorOptions::default(),
     )
     .unwrap();
-    let address = server.local_addr();
+    let address = *server.local_addr();
     let server = ServerWrapper(server);
     let server_ref = try_spawn_local(ErrorSupervisor, server, (), ActorOptions::default()).unwrap();
 

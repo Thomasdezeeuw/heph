@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(async_iterator, never_type, write_all_vectored)]
+#![feature(async_iterator, never_type)]
 
 #[path = "util/mod.rs"] // rustfmt can't find the file.
 #[macro_use]
