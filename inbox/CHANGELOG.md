@@ -1,3 +1,20 @@
+# 0.2.3 (unreleased)
+
+**NOTE**: currently required nightly, so don't release yet.
+
+* Add `Receiver::recv_many`
+  (https://github.com/Thomasdezeeuw/inbox/commit/cf33096d2e2937127813c8c0d8125f1e0a15f142)
+* Implement (Ref)UnwindSafe for channel types
+  (https://github.com/Thomasdezeeuw/inbox/commit/a949118787d98a1ea503f71cd43a0ec1c2603877,
+   https://github.com/Thomasdezeeuw/inbox/commit/7f4c70bdf3267b43bed86ab8b636207f617da505)
+* Fixed an issue in `SendValue::poll` when using the same `task::Waker`
+  (https://github.com/Thomasdezeeuw/inbox/commit/7c1983b3a87c31e9df2739f605c770a50a22063b).
+* Relax some of the atomic orderings to Release, Acquire or AcqRel instead of SeqCst
+  (https://github.com/Thomasdezeeuw/inbox/commit/cd7a4343411d5c3a07029725459f281d97b2ecfd).
+* Updated to use Rust edition 2021 and then 2024
+  (https://github.com/Thomasdezeeuw/inbox/commit/8e97a7759afd72072404f89bda7593fd3962bfd8,
+   https://github.com/Thomasdezeeuw/inbox/commit/26909738e87a096193509d3817ac9393ffffa47b)
+
 # 0.2.2
 
 ## Changed
