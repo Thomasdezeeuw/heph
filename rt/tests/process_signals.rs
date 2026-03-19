@@ -1,4 +1,4 @@
-#![feature(async_iterator, never_type)]
+#![feature(never_type)]
 
 use std::future::pending;
 use std::sync::Arc;
@@ -7,12 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
+use heph_rt::Runtime;
+use heph_rt::process::{self, Signal, To, send_signal};
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, SyncActorOptions};
-use heph_rt::{Runtime, process};
-
-mod util;
-
-use util::send_signal;
 
 fn main() {
     no_signal_handlers();
@@ -26,7 +23,7 @@ fn no_signal_handlers() {
     // We add a never ending process to make sure that the runtime doesn't
     // shutdown because no processes are left to run.
     runtime.spawn_future(pending(), FutureOptions::default());
-    send_signal(std::process::id(), libc::SIGINT).expect("failed to send signal");
+    send_signal(To::this_process(), Signal::INTERRUPT).expect("failed to send signal");
     let err_str = runtime.start().unwrap_err().to_string();
     assert!(
         err_str.contains("received process signal, but no receivers for it: stopping runtime"),
@@ -80,7 +77,7 @@ fn with_signal_handles() {
 
     // Sending a signal now shouldn't cause the runtime to return an error (as
     // the signal is handled by one or more actors).
-    send_signal(std::process::id(), libc::SIGINT).expect("failed to send signal");
+    send_signal(To::this_process(), Signal::INTERRUPT).expect("failed to send signal");
     runtime.start().unwrap();
 
     // Make sure that all the actor received the signal once.

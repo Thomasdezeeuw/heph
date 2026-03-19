@@ -1,7 +1,7 @@
 //! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
-#![feature(async_iterator, stmt_expr_attributes)]
+#![feature(stmt_expr_attributes)]
 
 use std::io::{self, Read};
 use std::net::{SocketAddr, TcpStream};
@@ -11,9 +11,7 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
-mod util;
-
-use util::send_signal;
+use heph_rt::process::{Signal, To, send_signal};
 
 #[test]
 fn test_1_hello_world() {
@@ -76,7 +74,7 @@ fn test_4_process_signals() {
 
     // After we know the runtime started we can send it a process signal to
     // start the actual test.
-    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
+    if let Err(err) = send_signal(To::child(&child.inner), Signal::INTERRUPT) {
         panic!("unexpected error sending signal to process: {err}");
     }
 
@@ -114,7 +112,7 @@ fn test_5_my_ip() {
         .expect("unable to to read from stream");
     assert_eq!(output, "127.0.0.1");
 
-    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
+    if let Err(err) = send_signal(To::child(&child.inner), Signal::INTERRUPT) {
         panic!("unexpected error sending signal to process: {err}");
     }
 }
