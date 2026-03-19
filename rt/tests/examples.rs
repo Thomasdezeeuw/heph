@@ -1,7 +1,7 @@
 //! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
-#![feature(async_iterator, never_type, stmt_expr_attributes, write_all_vectored)]
+#![feature(async_iterator, stmt_expr_attributes)]
 
 use std::io::{self, Read};
 use std::net::{SocketAddr, TcpStream};
@@ -11,8 +11,6 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
-#[path = "util/mod.rs"] // rustfmt can't find the file.
-#[macro_use]
 mod util;
 
 use util::send_signal;
