@@ -72,6 +72,7 @@ use heph::sync::{SyncActor, SyncWaker};
 use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
+use crate::bitmap::AtomicBitMap;
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::{
     Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, local, panic_message, shared,
@@ -87,11 +88,15 @@ fn test_coordinator() -> &'static Runtime {
     RT.get_or_init(|| {
         // NOTE: we do NOT signal the worker that the runtime has started, to
         // ensure that it doesn't stop before another test can use it.
-        Setup::new()
+        let rt = Setup::new()
             .with_name("Heph Test Runtime".to_string())
             .num_threads(1)
             .build()
-            .expect("failed to build test runtime")
+            .expect("failed to build test runtime");
+        // Set the atomic bitmap so that sync worker threads can report
+        // themselves as done (e.g. used by spawn_sync_actor).
+        rt.internals.set_shutdown_bitmap(AtomicBitMap::new(0));
+        rt
     })
 }
 
@@ -611,12 +616,10 @@ where
     let id = NonZeroUsize::new(SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::AcqRel)).unwrap();
 
     let shared = shared_internals();
-    sync_worker::spawn_thread(id, supervisor, actor, arg, options, shared, None).map(
-        |(worker, actor_ref)| {
-            let handle = worker.into_handle();
-            (handle, actor_ref)
-        },
-    )
+    let (worker, actor_ref) =
+        sync_worker::spawn_thread(id, supervisor, actor, arg, options, shared, None)?;
+    let handle = worker.into_handle();
+    Ok((handle, actor_ref))
 }
 
 /// Poll a future.

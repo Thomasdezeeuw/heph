@@ -139,7 +139,7 @@ fn supervision() {
     let (handle, _) = spawn_sync_actor(
         bad_actor_supervisor,
         actor_fn(bad_actor),
-        0usize,
+        0,
         SyncActorOptions::default(),
     )
     .unwrap();
