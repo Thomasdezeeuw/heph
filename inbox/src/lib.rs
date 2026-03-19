@@ -493,6 +493,7 @@ impl<'s, T> Future for SendValue<'s, T> {
                     ctx.waker(),
                 );
                 if !registered_waker {
+                    this.value = Some(value);
                     return Poll::Pending;
                 }
 
