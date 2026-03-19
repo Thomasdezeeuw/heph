@@ -8,7 +8,7 @@ use heph::actor::{self, actor_fn};
 use heph_rt::fd::AsyncFd;
 use heph_rt::pipe::pipe;
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{PanicSupervisor, join, join_many, try_spawn_local};
+use heph_rt::test::{PanicSupervisor, block_on_local_actor, join_many, try_spawn_local};
 use heph_rt::{self as rt};
 
 const DATA: &[u8] = b"Hello world";
@@ -20,7 +20,7 @@ fn smoke() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
+        let [receiver, sender] = pipe(ctx.runtime_ref().sq()).await?;
 
         (&sender).write_all(DATA).await?;
         drop(sender);
@@ -30,10 +30,7 @@ fn smoke() {
         assert_eq!(buf, DATA);
         Ok(())
     }
-
-    let actor = actor_fn(actor);
-    let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
-    join(&actor_ref, Duration::from_secs(1)).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -48,7 +45,7 @@ fn write_all_read_n() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
+        let [receiver, sender] = pipe(ctx.runtime_ref().sq()).await?;
 
         reader.send(receiver).await.unwrap();
 
@@ -97,7 +94,7 @@ fn write_vectored_all_read_n_vectored() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
+        let [receiver, sender] = pipe(ctx.runtime_ref().sq()).await?;
 
         reader.send(receiver).await.unwrap();
 
@@ -146,7 +143,7 @@ fn vectored_io() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
+        let [receiver, sender] = pipe(ctx.runtime_ref().sq()).await?;
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
         (&sender).write_all_vectored(bufs).await?;
@@ -163,8 +160,5 @@ fn vectored_io() {
         assert!(buf3 == DATAV[2]);
         Ok(())
     }
-
-    let actor = actor_fn(actor);
-    let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
-    join(&actor_ref, Duration::from_secs(1)).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
