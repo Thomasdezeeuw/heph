@@ -917,8 +917,8 @@ impl<T> Drop for Receiver<T> {
             drop(msg);
         }
 
-        // Let all senders know the sender is disconnected.
-        self.channel().wake_all_join();
+        // Let all senders know the receiver is disconnected.
+        self.channel().wake_all_senders();
 
         // If the previous value was `RECEIVER_ACCESS` it means that all senders
         // and the manager were all dropped, so we need to do the deallocating.
@@ -1121,10 +1121,13 @@ impl<T> Channel<T> {
         }
     }
 
-    /// Wakes all wakers waiting on the sender to disconnect.
-    fn wake_all_join(&self) {
-        let wakers = take(&mut *self.join_wakers.lock().unwrap());
-        for waker in wakers {
+    /// Wakes all senders waiting on the sender to disconnect, this includes the
+    /// futures trying to send a message and waiting for the receiver to
+    /// disconnect (join).
+    fn wake_all_senders(&self) {
+        let join_wakers = take(&mut *self.join_wakers.lock().unwrap());
+        let sender_wakers = take(&mut *self.sender_wakers.lock().unwrap());
+        for waker in join_wakers.into_iter().chain(sender_wakers) {
             waker.wake();
         }
     }
@@ -1303,6 +1306,7 @@ impl<T> Drop for Manager<T> {
         // First mark the manager as dropped.
         // SAFETY: for the reasoning behind this ordering see `Arc::drop`.
         let old_ref_count = self.channel().ref_count.fetch_and(!MANAGER_ALIVE, Ordering::Release);
+
         if has_receiver(old_ref_count) {
             // If the channel has a receiver we only mark the manager as dropped
             // (above).
