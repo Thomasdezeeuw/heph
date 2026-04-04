@@ -139,16 +139,24 @@ where
     F: FnOnce(RuntimeRef) -> T + Send + 'static,
     T: Send + 'static,
 {
-    let (sender, mut receiver) = new_oneshot();
-    let waker = SyncWaker::new();
-    _ = receiver.register_waker(&waker.clone().into_waker());
-    run_on_test_runtime(move |runtime_ref| {
-        drop(sender.try_send(f(runtime_ref)));
-        Ok(())
-    });
-    waker
-        .block_on(receiver.recv_once())
-        .expect("failed to receive result from test runtime")
+    let worker = &test_coordinator().workers[0];
+    SyncWaker::new().block_on(async move {
+        let (sender, receiver) = new_oneshot();
+        worker
+            .send_function_wait(Box::new(move |runtime_ref| {
+                let result = f(runtime_ref);
+                sender
+                    .try_send(result)
+                    .unwrap_or_else(|_| panic!("failed to return result"));
+                Ok(())
+            }))
+            .await
+            .expect("failed to communicate with the test runtime");
+        receiver
+            .recv_once()
+            .await
+            .expect("failed to receive result from test runtime")
+    })
 }
 
 /// Spawn `future` on the *test* runtime and wait for the result.
