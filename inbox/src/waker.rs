@@ -22,11 +22,11 @@ impl WakerRegistration {
     /// Register `waker`.
     pub(crate) fn register(&self, waker: &task::Waker) -> bool {
         let stored_waker = self.waker.read().unwrap();
-        if let Some(stored_waker) = &*stored_waker {
-            if stored_waker.will_wake(waker) {
-                self.needs_wakeup.store(true, Ordering::Release);
-                return false;
-            }
+        if let Some(stored_waker) = &*stored_waker
+            && stored_waker.will_wake(waker)
+        {
+            self.needs_wakeup.store(true, Ordering::Release);
+            return false;
         }
         drop(stored_waker); // Unlock read lock.
 
@@ -34,11 +34,11 @@ impl WakerRegistration {
         // Since another thread could have changed the waker since we dropped
         // the read lock and we got the write lock, we have to check the waker
         // again.
-        if let Some(stored_waker) = &*stored_waker {
-            if stored_waker.will_wake(waker) {
-                self.needs_wakeup.store(true, Ordering::Release);
-                return false;
-            }
+        if let Some(stored_waker) = &*stored_waker
+            && stored_waker.will_wake(waker)
+        {
+            self.needs_wakeup.store(true, Ordering::Release);
+            return false;
         }
         *stored_waker = Some(waker.clone());
         drop(stored_waker);
@@ -55,10 +55,9 @@ impl WakerRegistration {
         }
 
         // Mark that we've woken and after actually do the waking.
-        if self.needs_wakeup.swap(false, Ordering::AcqRel) {
-            if let Some(waker) = &*self.waker.read().unwrap() {
-                waker.wake_by_ref();
-            }
+        let needs_wakeup = self.needs_wakeup.swap(false, Ordering::AcqRel);
+        if needs_wakeup && let Some(waker) = &*self.waker.read().unwrap() {
+            waker.wake_by_ref();
         }
     }
 }

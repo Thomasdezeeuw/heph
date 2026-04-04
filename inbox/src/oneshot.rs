@@ -325,10 +325,10 @@ impl<T> Receiver<T> {
         let shared = self.shared();
         let mut receiver_waker = shared.receiver_waker.lock().unwrap();
 
-        if let Some(receiver_waker) = &*receiver_waker {
-            if receiver_waker.will_wake(waker) {
-                return false;
-            }
+        if let Some(receiver_waker) = &*receiver_waker
+            && receiver_waker.will_wake(waker)
+        {
+            return false;
         }
 
         *receiver_waker = Some(waker.clone());
