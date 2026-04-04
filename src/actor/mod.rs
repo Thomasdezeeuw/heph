@@ -707,10 +707,10 @@ fn format_name(full_name: &'static str) -> &'static str {
     // Remove generic parameters, e.g.
     // `deadline_actor<heph::actor::context::ThreadLocal>` to
     // `deadline_actor`.
-    if name.ends_with('>') {
-        if let Some(start_index) = name.find('<') {
-            name = &name[..start_index];
-        }
+    if name.ends_with('>')
+        && let Some(start_index) = name.find('<')
+    {
+        name = &name[..start_index];
     }
 
     // Function named `actor` in a module named `actor`. We'll drop the
