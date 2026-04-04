@@ -214,9 +214,8 @@ where
     NA::Argument: Send,
     NA::Error: fmt::Display + Send,
 {
-    let (sender, mut receiver) = new_oneshot();
+    let (sender, receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
         let ctx = actor::Context::new(receiver, runtime_ref.clone());
@@ -271,9 +270,8 @@ where
     NA::Argument: Send,
     NA::Error: fmt::Display + Send,
 {
-    let (sender, mut receiver) = new_oneshot();
+    let (sender, receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
         let ctx = actor::Context::new(receiver, ThreadSafe::new(runtime_ref.clone_shared()));
