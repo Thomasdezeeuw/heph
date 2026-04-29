@@ -89,7 +89,7 @@ pub use sync::{SyncActor, SyncActorRunner, SyncActorRunnerBuilder};
 /// NOTE: be sure to derefence the `Box`!
 #[doc(hidden)] // Not part of the stable API.
 pub fn panic_message<'a>(panic: &'a (dyn std::any::Any + Send + 'static)) -> &'a str {
-    match panic.downcast_ref::<&'static str>() {
+    match panic.downcast_ref::<&str>() {
         Some(s) => s,
         None => match panic.downcast_ref::<String>() {
             Some(s) => s,

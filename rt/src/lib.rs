@@ -647,7 +647,7 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
 /// Attempts to extract a message from a panic, defaulting to `<unknown>`.
 /// NOTE: be sure to derefence the `Box`!
 fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
-    match panic.downcast_ref::<&'static str>() {
+    match panic.downcast_ref::<&str>() {
         Some(s) => s,
         None => match panic.downcast_ref::<String>() {
             Some(s) => s,
