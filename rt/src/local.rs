@@ -11,7 +11,8 @@ use std::{fmt, io};
 
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
-use crate::metrics::LocalMetrics;
+use crate::info::Info;
+use crate::metrics::{LocalMetrics, SharedMetrics};
 use crate::rt::{TimerToken, Timers};
 use crate::scheduler::Scheduler;
 use crate::timing_wheel::TimingWheel;
@@ -48,6 +49,10 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     );
+
+    fn info(&self) -> &Info;
+    fn local_metrics(&self) -> LocalMetrics;
+    fn shared_metrics(&self) -> SharedMetrics;
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn try_poll_shared_ring(&self) -> io::Result<()>;
@@ -122,27 +127,10 @@ impl RuntimeInternals {
         )
     }
 
-    /// Returns metrics about the shared scheduler and timers.
-    pub(crate) fn metrics(&self) -> LocalMetrics {
-        let scheduler = self.scheduler.borrow();
-        let mut timers = self.timers.borrow_mut();
-        LocalMetrics {
-            scheduler_ready: scheduler.ready(),
-            scheduler_inactive: scheduler.inactive(),
-            timers: timers.len(),
-            timers_next: timers.until_next_deadline(),
-            trace_counter: self
-                .trace_log
-                .borrow()
-                .as_ref()
-                .map_or(0, |t| t.counter() as usize),
-        }
-    }
-
     /// Print metrics about the runtime internals.
     pub(crate) fn log_metrics(&self) {
         let timing = trace::start(&*self.trace_log.borrow());
-        let metrics = self.metrics();
+        let metrics = self.local_metrics();
         log::info!(
             target: "metrics",
             worker_id = self.id.get(),
@@ -280,6 +268,30 @@ impl LocalRuntimeData for RuntimeInternals {
             description,
             attributes,
         );
+    }
+
+    fn info(&self) -> &Info {
+        self.shared.info()
+    }
+
+    fn local_metrics(&self) -> LocalMetrics {
+        let scheduler = self.scheduler.borrow();
+        let mut timers = self.timers.borrow_mut();
+        LocalMetrics {
+            scheduler_ready: scheduler.ready(),
+            scheduler_inactive: scheduler.inactive(),
+            timers: timers.len(),
+            timers_next: timers.until_next_deadline(),
+            trace_counter: self
+                .trace_log
+                .borrow()
+                .as_ref()
+                .map_or(0, |t| t.counter() as usize),
+        }
+    }
+
+    fn shared_metrics(&self) -> SharedMetrics {
+        self.shared.metrics()
     }
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
