@@ -187,6 +187,7 @@ pub use error::Error;
 pub use setup::Setup;
 
 use info::Info;
+use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
 use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
@@ -413,6 +414,8 @@ where
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
     internals: Rc<local::RuntimeInternals>,
+    // TODO: change to a dyn trait to erase the underlying time of RuntimeInternals.
+    //internals: Rc<dyn local::LocalRuntimeData>,
 }
 
 impl RuntimeRef {

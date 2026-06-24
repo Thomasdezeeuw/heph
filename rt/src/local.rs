@@ -1,6 +1,7 @@
 //! Module with shared runtime internals.
 
 use std::cell::{Cell, RefCell};
+use std::fmt;
 use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
@@ -13,6 +14,10 @@ use crate::rt::Timers;
 use crate::scheduler::Scheduler;
 use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
+
+/// Trait to support type erasure needed by [`RuntimeRef`].
+pub(crate) trait LocalRuntimeData: fmt::Debug {
+}
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -200,4 +205,7 @@ impl RuntimeInternals {
     pub(crate) fn take_err(&self) -> Option<worker::Error> {
         self.error.borrow_mut().take()
     }
+}
+
+impl LocalRuntimeData for RuntimeInternals {
 }
