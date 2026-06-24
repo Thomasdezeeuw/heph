@@ -3,6 +3,7 @@
 use std::cell::{Cell, RefCell};
 use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::task;
@@ -14,7 +15,8 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
 use crate::rt::{TimerToken, Timers};
-use crate::scheduler::Scheduler;
+use crate::scheduler::{self, Scheduler};
+use crate::spawn::options::Priority;
 use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
@@ -40,6 +42,12 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
+
+    fn add_local_process(
+        &self,
+        priority: Priority,
+        process: Pin<Box<dyn scheduler::process::Run>>,
+    ) -> scheduler::ProcessId;
 
     fn start_trace(&self) -> Option<trace::EventTiming>;
     fn finish_trace(
@@ -248,6 +256,16 @@ impl LocalRuntimeData for RuntimeInternals {
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken) {
         log::trace!(deadline:?, token:?; "removing local timer");
         self.timers.borrow_mut().remove(deadline, token);
+    }
+
+    fn add_local_process(
+        &self,
+        priority: Priority,
+        process: Pin<Box<dyn scheduler::process::Run>>,
+    ) -> scheduler::ProcessId {
+        self.scheduler
+            .borrow_mut()
+            .add_new_process(priority, process)
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {

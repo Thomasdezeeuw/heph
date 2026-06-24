@@ -506,9 +506,7 @@ impl RuntimeRef {
         let process = FutureProcess(future);
         let pid = self
             .internals
-            .scheduler
-            .borrow_mut()
-            .add_new_process(options.priority(), process);
+            .add_local_process(options.priority(), Box::pin(process));
         log::debug!(pid; "spawning thread-local future");
     }
 
@@ -601,9 +599,7 @@ where
             .try_build(supervisor, new_actor, arg)?;
         let pid = self
             .internals
-            .scheduler
-            .borrow_mut()
-            .add_new_process(options.priority(), process);
+            .add_local_process(options.priority(), Box::pin(process));
         let name = NA::name();
         log::debug!(pid, name; "spawning thread-local actor");
         Ok(actor_ref)

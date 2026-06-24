@@ -140,7 +140,7 @@ fn has_user_process() {
     assert!(!scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
 
-    let _ = scheduler.add_new_process(Priority::NORMAL, NopTestProcess);
+    let _ = scheduler.add_new_process(Priority::NORMAL, Box::pin(NopTestProcess));
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 }
@@ -155,7 +155,7 @@ fn add_actor() {
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    let _ = scheduler.add_new_process(Priority::NORMAL, process);
+    let _ = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 }
@@ -169,7 +169,7 @@ fn wake_process() {
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    let _ = scheduler.add_new_process(Priority::NORMAL, process);
+    let _ = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
 
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
@@ -336,7 +336,7 @@ fn scheduler_run_order() {
             new_actor,
             (id, run_order.clone()),
         );
-        let pid = scheduler.add_new_process(*priority, process);
+        let pid = scheduler.add_new_process(*priority, Box::pin(process));
         pids.push(pid);
     }
 
@@ -366,7 +366,7 @@ fn assert_actor_process_unmoved() {
         TestAssertUnmovedNewActor::new(),
         (),
     );
-    _ = scheduler.add_new_process(Priority::NORMAL, process);
+    _ = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
@@ -394,7 +394,7 @@ fn assert_future_process_unmoved() {
     let mut ctx = task::Context::from_waker(&waker);
 
     let process = FutureProcess(AssertUnmoved::new(pending()));
-    let _ = scheduler.add_new_process(Priority::NORMAL, process);
+    let _ = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
@@ -421,7 +421,7 @@ fn add_test_actor(scheduler: &mut Scheduler<Cfs>, priority: Priority) -> Process
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    scheduler.add_new_process(priority, process)
+    scheduler.add_new_process(priority, Box::pin(process))
 }
 
 /// Creates a `Scheduler` with `SYSTEM_ACTORS` number of fake system actors.
@@ -438,7 +438,7 @@ fn test_scheduler() -> Scheduler<Cfs> {
             ActorFutureBuilder::new()
                 .with_rt(rt.clone())
                 .build(NoSupervisor, new_actor, ());
-        _ = scheduler.add_new_process(Priority::SYSTEM, process);
+        _ = scheduler.add_new_process(Priority::SYSTEM, Box::pin(process));
         let process = scheduler.next_process().unwrap();
         scheduler.add_back_process(process);
     }
