@@ -27,6 +27,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
+use crate::local::LocalRuntimeData;
 use crate::rt::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
@@ -551,7 +552,7 @@ impl std::error::Error for Error {
 /// Spawn all system actors.
 #[allow(clippy::assertions_on_constants)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
-    log::trace!(worker_id = runtime_ref.internals.id; "spawning {SYSTEM_ACTORS} system actors");
+    log::trace!(worker_id = runtime_ref.internals.worker_id(); "spawning {SYSTEM_ACTORS} system actors");
     let sys_ref =
         runtime_ref.spawn_local(NoSupervisor, actor_fn(comm_actor), (), ActorOptions::SYSTEM);
     let _ = runtime_ref.spawn_local(NoSupervisor, actor_fn(poll_actor), (), ActorOptions::SYSTEM);
@@ -589,7 +590,7 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
         let timing = ctx.start_trace();
-        log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
+        log::trace!(worker_id = internals.worker_id(), message:? = msg; "processing coordinator message");
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
@@ -612,7 +613,7 @@ async fn poll_actor(mut ctx: actor::Context<!, ThreadLocal>) {
 
         let internals = &ctx.runtime_ref().internals;
         let timing = ctx.start_trace();
-        log::trace!(worker_id = internals.id; "polling shared ring");
+        log::trace!(worker_id = internals.worker_id(); "polling shared ring");
         if let Err(err) = internals.shared.try_poll_ring() {
             log::warn!("error polling shared ring: {err}");
         }
