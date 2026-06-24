@@ -175,6 +175,7 @@ pub mod systemd;
 pub mod test;
 pub mod timer;
 mod timers;
+mod timing_wheel;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;

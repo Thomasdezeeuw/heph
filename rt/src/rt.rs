@@ -66,3 +66,5 @@ impl TimerToken {
         self.0
     }
 }
+
+pub use crate::timing_wheel::TimingWheel;
