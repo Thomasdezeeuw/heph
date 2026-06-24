@@ -546,7 +546,7 @@ impl RuntimeRef {
 
     /// Get information about the runtime and the environment it's running in.
     pub fn info(&self) -> &Info {
-        self.shared().info()
+        self.internals.shared.info()
     }
 
     /// Get metrics about the shared parts of the runtime, such as thread-safe
@@ -556,7 +556,7 @@ impl RuntimeRef {
     /// unlike [`RuntimeRef::local_metrics`] which returns worker specific
     /// metrics.
     pub fn shared_metrics(&self) -> SharedMetrics {
-        self.shared().metrics()
+        self.internals.shared.metrics()
     }
 
     /// Get metrics about the local parts of the runtime, such as thread-local
@@ -567,11 +567,6 @@ impl RuntimeRef {
     /// part of the runtime.
     pub fn local_metrics(&self) -> LocalMetrics {
         self.internals.metrics()
-    }
-
-    /// Returns a reference to the shared internals.
-    fn shared(&self) -> &shared::RuntimeInternals {
-        &self.internals.shared
     }
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
