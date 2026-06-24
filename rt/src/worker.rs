@@ -607,8 +607,7 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
 async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
     let mut pollable = ctx
         .runtime_ref()
-        .shared()
-        .ring_pollable(ctx.runtime_ref().sq());
+        .shared_ring_pollable(ctx.runtime_ref().sq());
     while let Some(res) = next(&mut pollable).await {
         if let Err(err) = res {
             log::warn!("error checking if ring is pollable: {err}");
