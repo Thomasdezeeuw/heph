@@ -62,3 +62,11 @@ jobs:
     - uses: ./.github/workflows/clippy
       with:
         working-directory: inbox
+  Rustfmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/workflows/rustfmt
+      with:
+        working-directory: inbox

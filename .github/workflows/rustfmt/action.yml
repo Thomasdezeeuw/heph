@@ -1,0 +1,17 @@
+name: Rustfmt
+description: 'Run rustfmt.'
+inputs:
+  working-directory:
+    description: 'Working directory.'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+  - uses: dtolnay/rust-toolchain@nightly
+    with:
+      components: rustfmt
+  - name: Check formatting
+    shell: bash
+    run: |
+      cd "${{ inputs.working-directory }}"
+      cargo fmt -- --check

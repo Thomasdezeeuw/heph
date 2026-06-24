@@ -10,16 +10,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  Rustfmt:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: rustfmt
-    - name: Check formatting
-      run: cargo fmt --all -- --check
   Docs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
