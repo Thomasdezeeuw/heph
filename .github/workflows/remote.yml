@@ -23,7 +23,7 @@ jobs:
     - uses: actions/checkout@v7
     - name: Install Cargo-hack
       run: cargo install --debug cargo-hack
-    - uses: ./.github/workflows/test
+    - uses: ./.github/actions/test
       with:
         working-directory: remote
   Sanitiser:
@@ -37,7 +37,7 @@ jobs:
         sanitiser: [address, memory, thread] # leak
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/test_sanitizer
+    - uses: ./.github/actions/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
         working-directory: remote
@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/clippy
+    - uses: ./.github/actions/clippy
       with:
         working-directory: remote
   Rustfmt:
@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/rustfmt
+    - uses: ./.github/actions/rustfmt
       with:
         working-directory: remote
   Docs:
@@ -62,6 +62,6 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/rustdoc
+    - uses: ./.github/actions/rustdoc
       with:
         working-directory: remote

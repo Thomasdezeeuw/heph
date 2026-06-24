@@ -23,7 +23,7 @@ jobs:
     if: false
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/test
+    - uses: ./.github/actions/test
       with:
         working-directory: http
   Sanitiser:
@@ -39,7 +39,7 @@ jobs:
         sanitiser: [address, memory, thread] # leak
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/test_sanitizer
+    - uses: ./.github/actions/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
         working-directory: http
@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/clippy
+    - uses: ./.github/actions/clippy
       with:
         working-directory: http
   Rustfmt:
@@ -56,7 +56,7 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/rustfmt
+    - uses: ./.github/actions/rustfmt
       with:
         working-directory: http
   Docs:
@@ -64,6 +64,6 @@ jobs:
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v7
-    - uses: ./.github/workflows/rustdoc
+    - uses: ./.github/actions/rustdoc
       with:
         working-directory: http
