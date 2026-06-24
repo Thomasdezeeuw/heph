@@ -9,7 +9,7 @@
 # You can also use `TEST_FLAGS` to set additonal flags, e.g. `--release`.
 TEST_OPTS = -- --quiet -Z unstable-options --shuffle
 # Supported targets.
-TARGETS ?= x86_64-unknown-linux-gnu
+TARGETS ?= x86_64-unknown-linux-gnu aarch64-apple-darwin
 # Command to run in `dev` target, e.g. `make RUN=check dev`.
 RUN ?= test
 # The location of LLVM tools, rustup doesn't make this easy on us.
@@ -82,7 +82,7 @@ check:
 
 check_all_targets: $(TARGETS)
 $(TARGETS):
-	cargo check --all-features --all-targets --target $@
+	cargo check --all-targets --all-features -Zbuild-std --target $@
 
 # Reasons to allow lints:
 # `cargo-common-metadata`: for `benches` and `tools`.
