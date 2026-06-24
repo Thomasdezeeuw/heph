@@ -594,7 +594,7 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
-            Control::Run(f) => internals.run_user_function(f),
+            Control::Run(f) => internals.clone().run_user_function(f),
         }
         ctx.finish_trace(timing, "Processing communication message", &[]);
     }

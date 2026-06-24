@@ -23,6 +23,17 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
     fn worker_id(&self) -> NonZeroUsize;
     fn cpu_affinity(&self) -> Option<usize>;
+
+    /// Make [`RuntimeInternals::started`] return true.
+    fn start(&self);
+    /// Relay a process `signal` to all actors that wanted to receive it, or
+    /// returns an error if no actors want to receive it.
+    fn relay_signal(&self, signal: process::Signal);
+    /// Run user function `f`, setting the error if it fails.
+    // NOTE: this method should take `&Rc<Self>` (Rc by reference) because it
+    // doesn't need to own it, but that makes it Dyn incompatible.
+    fn run_user_function(self: Rc<Self>, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>);
+
     fn local_sq(&self) -> a10::SubmissionQueue;
 
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
@@ -126,33 +137,6 @@ impl RuntimeInternals {
         }
     }
 
-    /// Relay a process `signal` to all actors that wanted to receive it, or
-    /// returns an error if no actors want to receive it.
-    pub(crate) fn relay_signal(&self, signal: process::Signal) {
-        let timing = trace::start(&*self.trace_log.borrow());
-        log::trace!(worker_id = self.id, signal:?; "received process signal");
-
-        if let process::Signal::USER2 = signal {
-            self.log_metrics();
-        }
-
-        let mut receivers = self.signal_receivers.borrow_mut();
-        receivers.remove_disconnected();
-        match receivers.try_send_to_all(signal) {
-            Err(SendError) if signal.should_exit() => {
-                self.set_err(worker::Error::ProcessInterrupted);
-            }
-            Ok(()) | Err(SendError) => {}
-        }
-
-        trace::finish_rt(
-            self.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Relaying process signal to actors",
-            &[("signal", &format_args!("{signal:?}"))],
-        );
-    }
-
     /// Print metrics about the runtime internals.
     pub(crate) fn log_metrics(&self) {
         let timing = trace::start(&*self.trace_log.borrow());
@@ -176,37 +160,6 @@ impl RuntimeInternals {
             "Printing runtime metrics",
             &[],
         );
-    }
-
-    /// Run user function `f`, setting the error if it fails.
-    pub(crate) fn run_user_function(
-        self: &Rc<Self>,
-        f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>,
-    ) {
-        let timing = trace::start(&*self.trace_log.borrow());
-        let runtime_ref = RuntimeRef {
-            internals: self.clone(),
-        };
-        let result = panic::catch_unwind(AssertUnwindSafe(move || f(runtime_ref)));
-        trace::finish_rt(
-            self.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Running user function",
-            &[],
-        );
-        match result {
-            Ok(Ok(())) => {}
-            Ok(Err(err)) => self.set_err(worker::Error::UserFunction(err.into())),
-            Err(err) => {
-                let msg = format!("user function panicked: {}", panic_message(&*err));
-                self.set_err(worker::Error::UserFunction(msg.into()));
-            }
-        }
-    }
-
-    /// Make [`RuntimeInternals::started`] return true.
-    pub(crate) fn start(&self) {
-        self.started.set(true);
     }
 
     /// Whether or not the runtime has been started.
@@ -236,6 +189,57 @@ impl LocalRuntimeData for RuntimeInternals {
 
     fn cpu_affinity(&self) -> Option<usize> {
         self.cpu
+    }
+
+    fn start(&self) {
+        self.started.set(true);
+    }
+
+    fn relay_signal(&self, signal: process::Signal) {
+        let timing = trace::start(&*self.trace_log.borrow());
+        log::trace!(worker_id = self.id, signal:?; "received process signal");
+
+        if let process::Signal::USER2 = signal {
+            self.log_metrics();
+        }
+
+        let mut receivers = self.signal_receivers.borrow_mut();
+        receivers.remove_disconnected();
+        match receivers.try_send_to_all(signal) {
+            Err(SendError) if signal.should_exit() => {
+                self.set_err(worker::Error::ProcessInterrupted);
+            }
+            Ok(()) | Err(SendError) => {}
+        }
+
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Relaying process signal to actors",
+            &[("signal", &format_args!("{signal:?}"))],
+        );
+    }
+
+    fn run_user_function(self: Rc<Self>, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
+        let timing = trace::start(&*self.trace_log.borrow());
+        let runtime_ref = RuntimeRef {
+            internals: self.clone(),
+        };
+        let result = panic::catch_unwind(AssertUnwindSafe(move || f(runtime_ref)));
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Running user function",
+            &[],
+        );
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => self.set_err(worker::Error::UserFunction(err.into())),
+            Err(err) => {
+                let msg = format!("user function panicked: {}", panic_message(&*err));
+                self.set_err(worker::Error::UserFunction(msg.into()));
+            }
+        }
     }
 
     fn local_sq(&self) -> a10::SubmissionQueue {
