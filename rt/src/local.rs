@@ -1,13 +1,13 @@
 //! Module with shared runtime internals.
 
 use std::cell::{Cell, RefCell};
-use std::fmt;
 use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::task;
 use std::time::Instant;
+use std::{fmt, io};
 
 use heph::actor_ref::{ActorGroup, SendError};
 
@@ -49,6 +49,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     );
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
+    fn try_poll_shared_ring(&self) -> io::Result<()>;
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
 }
 
@@ -278,6 +279,10 @@ impl LocalRuntimeData for RuntimeInternals {
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
         self.shared.ring_pollable(sq)
+    }
+
+    fn try_poll_shared_ring(&self) -> io::Result<()> {
+        self.shared.try_poll_ring()
     }
 
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {

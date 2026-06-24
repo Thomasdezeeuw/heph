@@ -614,7 +614,7 @@ async fn poll_actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let internals = &ctx.runtime_ref().internals;
         let timing = ctx.start_trace();
         log::trace!(worker_id = internals.worker_id(); "polling shared ring");
-        if let Err(err) = internals.shared.try_poll_ring() {
+        if let Err(err) = internals.try_poll_shared_ring() {
             log::warn!("error polling shared ring: {err}");
         }
         ctx.finish_trace(timing, "Polling shared ring", &[]);
