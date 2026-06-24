@@ -164,7 +164,7 @@ fn main(
 /// holds and manages everything that is required to run them.
 pub(crate) struct Worker {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<local::RuntimeInternals>,
+    internals: Rc<local::RuntimeInternals<crate::timing_wheel::TimingWheel>>, // TODO.
 }
 
 impl Worker {
@@ -207,6 +207,7 @@ impl Worker {
             id,
             shared_internals,
             ring,
+            crate::timing_wheel::TimingWheel::new(), // TODO.
             cpu_affinity,
             trace_log,
         ));

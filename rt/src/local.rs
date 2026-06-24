@@ -70,7 +70,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
-pub(crate) struct RuntimeInternals {
+pub(crate) struct RuntimeInternals<T> {
     /// Unique id among the worker threads.
     pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
@@ -80,7 +80,7 @@ pub(crate) struct RuntimeInternals {
     /// I/O ring.
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
-    pub(crate) timers: RefCell<TimingWheel>,
+    pub(crate) timers: RefCell<T>,
     /// Actor references to relay received process signals to.
     pub(crate) signal_receivers: RefCell<ActorGroup<process::Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
@@ -101,39 +101,31 @@ pub(crate) struct RuntimeInternals {
     error: RefCell<Option<worker::Error>>,
 }
 
-impl RuntimeInternals {
+impl<T> RuntimeInternals<T>
+where
+    Self: LocalRuntimeData,
+{
     /// Create a local runtime internals.
     pub(crate) fn new(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
         ring: a10::Ring,
+        timers: T,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
-    ) -> RuntimeInternals {
+    ) -> RuntimeInternals<T> {
         RuntimeInternals {
             id,
             shared: shared_internals,
             scheduler: RefCell::new(Scheduler::new(ring.sq())),
             ring: RefCell::new(ring),
-            timers: RefCell::new(TimingWheel::new()),
+            timers: RefCell::new(timers),
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
             started: Cell::new(false),
             error: RefCell::new(None),
         }
-    }
-
-    #[cfg(any(test, feature = "test"))]
-    pub(crate) fn new_test(shared_internals: Arc<shared::RuntimeInternals>) -> RuntimeInternals {
-        let ring = a10::Ring::new().unwrap();
-        RuntimeInternals::new(
-            NonZeroUsize::new(1).unwrap(),
-            shared_internals,
-            ring,
-            None,
-            None,
-        )
     }
 
     /// Print metrics about the runtime internals.
@@ -181,7 +173,27 @@ impl RuntimeInternals {
     }
 }
 
-impl LocalRuntimeData for RuntimeInternals {
+#[cfg(any(test, feature = "test"))]
+impl RuntimeInternals<TimingWheel> {
+    pub(crate) fn new_test(
+        shared_internals: Arc<shared::RuntimeInternals>,
+    ) -> RuntimeInternals<TimingWheel> {
+        let ring = a10::Ring::new().unwrap();
+        RuntimeInternals::new(
+            NonZeroUsize::new(1).unwrap(),
+            shared_internals,
+            ring,
+            TimingWheel::new(),
+            None,
+            None,
+        )
+    }
+}
+
+impl<T> LocalRuntimeData for RuntimeInternals<T>
+where
+    T: Timers + fmt::Debug + 'static,
+{
     fn worker_id(&self) -> NonZeroUsize {
         self.id
     }
