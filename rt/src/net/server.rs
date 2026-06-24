@@ -523,7 +523,7 @@ where
     loop {
         match either(next(&mut accept), &mut receive).await {
             Ok(Some(Ok(stream))) => {
-                log::trace!("Server accepted connection");
+                log::trace!("server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 #[cfg(any(target_os = "android", target_os = "linux"))]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
@@ -550,11 +550,11 @@ where
                 return Ok(());
             }
             Err(Ok(_)) => {
-                log::debug!("Server received shutdown message, stopping");
+                log::debug!("server received shutdown message, stopping");
                 return Ok(());
             }
             Err(Err(NoMessages)) => {
-                log::debug!("All actor references to server dropped, stopping");
+                log::debug!("all actor references to server dropped, stopping");
                 return Ok(());
             }
         }

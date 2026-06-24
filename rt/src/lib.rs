@@ -505,7 +505,7 @@ impl RuntimeRef {
         let pid = self
             .internals
             .add_local_process(options.priority(), Box::pin(process));
-        log::debug!(pid; "spawning thread-local future");
+        log::debug!(pid; "spawned thread-local future");
     }
 
     /// Spawn a thread-safe [`Future`].
@@ -599,7 +599,7 @@ where
             .internals
             .add_local_process(options.priority(), Box::pin(process));
         let name = NA::name();
-        log::debug!(pid, name; "spawning thread-local actor");
+        log::debug!(pid, name; "spawned thread-local actor");
         Ok(actor_ref)
     }
 }
