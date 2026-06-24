@@ -408,7 +408,13 @@ fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedF
     // SAFETY: a10::net::Domain has the same layout as the underlying type,
     // which is libc::c_int.
     let raw_domain: libc::c_int = unsafe { std::mem::transmute_copy(&domain) };
-    let fd = syscall!(socket(raw_domain, libc::SOCK_STREAM, 0))?;
+    #[allow(unused_mut)]
+    let mut r#type = libc::SOCK_STREAM;
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    {
+        r#type |= libc::SOCK_CLOEXEC; // NOTE: don't need SOCK_NONBLOCK for io_uring/A10.
+    }
+    let fd = syscall!(socket(raw_domain, r#type, 0))?;
     // SAFETY: just created the socket, so it's valid.
     let socket = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
 
@@ -433,6 +439,19 @@ fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedF
             ptr,
             len
         ))?;
+    }
+
+    // Apple systems don't have SOCK_NONBLOCK or SOCK_CLOEXEC.
+    #[cfg(any(
+        target_os = "ios",
+        target_os = "macos",
+        target_os = "tvos",
+        target_os = "visionos",
+        target_os = "watchos",
+    ))]
+    {
+        _ = syscall!(fcntl(fd, libc::F_SETFL, libc::O_NONBLOCK))?;
+        _ = syscall!(fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC))?;
     }
 
     // Bind the socket.
