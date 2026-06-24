@@ -27,7 +27,6 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::local::LocalRuntimeData;
 use crate::rt::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;

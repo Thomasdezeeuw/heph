@@ -413,9 +413,7 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internals: Rc<local::RuntimeInternals>,
-    // TODO: change to a dyn trait to erase the underlying time of RuntimeInternals.
-    //internals: Rc<dyn local::LocalRuntimeData>,
+    internals: Rc<dyn LocalRuntimeData>,
 }
 
 impl RuntimeRef {
