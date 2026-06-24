@@ -111,7 +111,7 @@ where
 
     /// Change the thread-local [`Timers`] implementation.
     ///
-    /// The function `create_timers` will be created on each worker to create a
+    /// The function `create_timers` will be called on each worker to create a
     /// new [`Timers`] implementation for each thread.
     ///
     /// Defaults to [`TimingWheel`].
@@ -160,7 +160,7 @@ where
     }
 
     /// Maximum number of processes to run in between polling for more events
-    /// (such as I/O events).
+    /// (such as I/O events and timers).
     ///
     /// Defaults to 32.
     ///
