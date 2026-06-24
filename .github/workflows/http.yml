@@ -22,7 +22,7 @@ jobs:
     # TODO: enable <https://github.com/Thomasdezeeuw/heph/issues/647>.
     if: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - uses: ./.github/workflows/test
       with:
         working-directory: http
@@ -38,7 +38,7 @@ jobs:
         # <https://github.com/rust-lang/rust/issues/111073>.
         sanitiser: [address, memory, thread] # leak
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - uses: ./.github/workflows/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
