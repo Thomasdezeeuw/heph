@@ -29,6 +29,7 @@ use heph::supervisor::NoSupervisor;
 use crate::error::StringError;
 use crate::rt::Timers;
 use crate::spawn::options::ActorOptions;
+use crate::trace::Trace;
 use crate::util::next;
 use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
 
@@ -587,24 +588,19 @@ impl fmt::Debug for Control {
 async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
-        let timing = trace::start(&*internals.trace_log.borrow());
+        let timing = ctx.start_trace();
         log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
             Control::Run(f) => internals.run_user_function(f),
         }
-        trace::finish_rt(
-            internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Processing communication message",
-            &[],
-        );
+        ctx.finish_trace(timing, "Processing communication message", &[]);
     }
 }
 
 /// System actor that polls the shared ring.
-async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
+async fn poll_actor(mut ctx: actor::Context<!, ThreadLocal>) {
     let mut pollable = ctx
         .runtime_ref()
         .shared_ring_pollable(ctx.runtime_ref().sq());
@@ -615,16 +611,11 @@ async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
         }
 
         let internals = &ctx.runtime_ref().internals;
-        let timing = trace::start(&*internals.trace_log.borrow());
+        let timing = ctx.start_trace();
         log::trace!(worker_id = internals.id; "polling shared ring");
         if let Err(err) = internals.shared.try_poll_ring() {
             log::warn!("error polling shared ring: {err}");
         }
-        trace::finish_rt(
-            internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Polling shared ring",
-            &[],
-        );
+        ctx.finish_trace(timing, "Polling shared ring", &[]);
     }
 }
