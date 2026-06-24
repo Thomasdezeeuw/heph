@@ -41,3 +41,11 @@ jobs:
       with:
         sanitizer: ${{ matrix.sanitiser }}
         working-directory: rt
+  Clippy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/workflows/clippy
+      with:
+        working-directory: rt

@@ -10,16 +10,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  Clippy:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: clippy
-    - name: Run Clippy
-      run: make clippy_all
   Rustfmt:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
