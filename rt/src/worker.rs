@@ -27,6 +27,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
+use crate::rt::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::util::next;
 use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
@@ -469,7 +470,7 @@ impl Worker {
         }
 
         let now = Instant::now();
-        match self.internals.timers.borrow_mut().next() {
+        match self.internals.timers.borrow_mut().next_deadline() {
             Some(deadline) => match deadline.checked_duration_since(now) {
                 // Deadline has already expired, so no blocking.
                 None => Some(Duration::ZERO),

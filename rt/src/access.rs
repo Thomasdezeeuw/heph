@@ -36,6 +36,7 @@ use std::{fmt, task};
 
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
+use crate::rt::Timers;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;
 use crate::trace::{self, Trace};

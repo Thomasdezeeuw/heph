@@ -9,8 +9,9 @@ use std::sync::Arc;
 use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::metrics::LocalMetrics;
+use crate::rt::Timers;
 use crate::scheduler::Scheduler;
-use crate::timers::Timers;
+use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
@@ -25,7 +26,7 @@ pub(crate) struct RuntimeInternals {
     /// I/O ring.
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
-    pub(crate) timers: RefCell<Timers>,
+    pub(crate) timers: RefCell<TimingWheel>,
     /// Actor references to relay received process signals to.
     pub(crate) signal_receivers: RefCell<ActorGroup<process::Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
@@ -60,7 +61,7 @@ impl RuntimeInternals {
             shared: shared_internals,
             scheduler: RefCell::new(Scheduler::new(ring.sq())),
             ring: RefCell::new(ring),
-            timers: RefCell::new(Timers::new()),
+            timers: RefCell::new(TimingWheel::new()),
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
@@ -89,7 +90,7 @@ impl RuntimeInternals {
             scheduler_ready: scheduler.ready(),
             scheduler_inactive: scheduler.inactive(),
             timers: timers.len(),
-            timers_next: timers.next_timer(),
+            timers_next: timers.until_next_deadline(),
             trace_counter: self
                 .trace_log
                 .borrow()
