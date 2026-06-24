@@ -1,4 +1,3 @@
-use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
 use std::marker::PhantomData;
@@ -95,7 +94,7 @@ fn auto_cpu_affinity() {
     where
         S: Supervisor<NA> + Clone + 'static,
         NA: NewActor<Argument = AsyncFd, RuntimeAccess = ThreadLocal> + Clone + 'static,
-        NA::Error: fmt::Display,
+        NA::Error: std::fmt::Display,
     {
         fn decide(&mut self, err: ServerError<NA::Error>) -> SupervisorStrategy<()> {
             panic!("unexpected error accept stream: {err}");
