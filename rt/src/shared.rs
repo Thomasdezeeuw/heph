@@ -190,7 +190,9 @@ impl RuntimeInternals {
             .with_rt(rt)
             .with_inbox_size(options.inbox_size())
             .try_build(supervisor, new_actor, arg)?;
-        let pid = self.scheduler.add_new_process(options.priority(), process);
+        let pid = self
+            .scheduler
+            .add_new_process(options.priority(), Box::pin(process));
         let name = NA::name();
         log::debug!(pid, name; "spawning thread-safe actor");
         Ok(actor_ref)
@@ -203,7 +205,9 @@ impl RuntimeInternals {
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
         let process = FutureProcess(future);
-        let pid = self.scheduler.add_new_process(options.priority(), process);
+        let pid = self
+            .scheduler
+            .add_new_process(options.priority(), Box::pin(process));
         log::debug!(pid; "spawning thread-safe future");
     }
 
@@ -213,7 +217,7 @@ impl RuntimeInternals {
     where
         P: crate::scheduler::process::Run + Send + Sync + 'static,
     {
-        self.scheduler.add_new_process(priority, process)
+        self.scheduler.add_new_process(priority, Box::pin(process))
     }
 
     /// See [`Scheduler::mark_ready`].
