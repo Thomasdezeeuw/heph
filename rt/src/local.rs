@@ -21,6 +21,7 @@ use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 pub(crate) trait LocalRuntimeData: fmt::Debug {
     // NOTE: these methods are documented on RuntimeRef or PrivateAccess.
 
+    fn cpu_affinity(&self) -> Option<usize>;
     fn local_sq(&self) -> a10::SubmissionQueue;
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
@@ -45,7 +46,7 @@ pub(crate) struct RuntimeInternals {
     /// Actor references to relay received process signals to.
     pub(crate) signal_receivers: RefCell<ActorGroup<process::Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
-    pub(crate) cpu: Option<usize>,
+    cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
     pub(crate) trace_log: RefCell<Option<trace::Log>>,
     /// Whether or not the runtime was started.
@@ -218,6 +219,10 @@ impl RuntimeInternals {
 }
 
 impl LocalRuntimeData for RuntimeInternals {
+    fn cpu_affinity(&self) -> Option<usize> {
+        self.cpu
+    }
+
     fn local_sq(&self) -> a10::SubmissionQueue {
         self.ring.borrow().sq()
     }

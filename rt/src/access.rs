@@ -180,7 +180,7 @@ impl PrivateAccess for ThreadLocal {
     }
 
     fn cpu(&self) -> Option<usize> {
-        self.internals.cpu
+        self.internals.cpu_affinity()
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
