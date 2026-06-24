@@ -19,7 +19,7 @@ TARGET_DIR=$(shell cargo metadata --format-version 1 | jq --raw-output '.target_
 
 # Development loop, runs $RUN whenever a source file changes.
 dev:
-	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) $(RUN)
+	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -cc $(MAKE) $(RUN)
 
 test:
 	cargo test --all-features $(TEST_FLAGS) $(TEST_OPTS)
