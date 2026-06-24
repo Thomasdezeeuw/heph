@@ -26,8 +26,8 @@ jobs:
       matrix:
         release: ['', '--release'] # '' => debug.
     steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/workflows/test
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/test
       with:
         test-flags: ${{ matrix.release }}
         working-directory: inbox
@@ -35,8 +35,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/workflows/test_miri
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/test_miri
       with:
         working-directory: inbox
   Sanitiser:
@@ -49,8 +49,32 @@ jobs:
         # <https://github.com/rust-lang/rust/issues/111073>.
         sanitiser: [address, memory, thread] # leak
     steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/workflows/test_sanitizer
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
+        working-directory: inbox
+  Clippy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/clippy
+      with:
+        working-directory: inbox
+  Rustfmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/rustfmt
+      with:
+        working-directory: inbox
+  Docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/rustdoc
+      with:
         working-directory: inbox

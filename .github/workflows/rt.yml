@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/workflows/test
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/test
       with:
         working-directory: rt
   Sanitiser:
@@ -36,8 +36,32 @@ jobs:
         # <https://github.com/rust-lang/rust/issues/111073>.
         sanitiser: [address, memory, thread] # leak
     steps:
-    - uses: actions/checkout@v4
-    - uses: ./.github/workflows/test_sanitizer
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
+        working-directory: rt
+  Clippy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/clippy
+      with:
+        working-directory: rt
+  Rustfmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/rustfmt
+      with:
+        working-directory: rt
+  Docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/rustdoc
+      with:
         working-directory: rt

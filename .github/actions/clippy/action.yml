@@ -1,0 +1,17 @@
+name: Clippy
+description: 'Run Clippy using `make clippy`.'
+inputs:
+  working-directory:
+    description: 'Working directory.'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+  - uses: dtolnay/rust-toolchain@nightly
+    with:
+      components: clippy
+  - name: Run Clippy
+    shell: bash
+    run: |
+      cd "${{ inputs.working-directory }}"
+      make clippy
