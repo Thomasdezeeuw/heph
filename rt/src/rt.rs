@@ -117,4 +117,4 @@ impl TimerToken {
     }
 }
 
-pub use crate::timing_wheel::TimingWheel;
+pub use crate::timing_wheel::{SharedTimingWheel, TimingWheel};
