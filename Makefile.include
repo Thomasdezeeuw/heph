@@ -98,8 +98,10 @@ $(TARGETS):
 # `use-self`: this is a bad lint.
 #
 # # Could fix these later
-# `enum-glob-use`: used in enum errors.
-# `missing-errors-doc`, `missing-panics-doc`: don't want to do this.
+#  * `enum-glob-use`: used in enum errors.
+#  * `missing-errors-doc`, `missing-panics-doc`: don't want to do this.
+#  * `redundant-closure-for-method-calls`: too many not worthwhile/worsening suggestions.
+#  * `return-self-not-must-use`: getting a bit silly.
 # Too many warnings:
 #  * `must-use-candidate`.
 #  * `redundant-pub-crate`.
@@ -136,6 +138,8 @@ clippy:
 		--allow clippy::single_match_else \
 		--allow clippy::use-self \
 		--allow clippy::used-underscore-items \
+		--allow clippy::redundant-closure-for-method-calls \
+		--allow clippy::return-self-not-must-use \
 
 doc:
 	cargo doc --all-features
