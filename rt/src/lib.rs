@@ -538,10 +538,7 @@ impl RuntimeRef {
     /// [process module]: crate::process#signal-handling
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn receive_signals(&mut self, actor_ref: ActorRef<process::Signal>) {
-        self.internals
-            .signal_receivers
-            .borrow_mut()
-            .add_unique(actor_ref);
+        self.internals.receive_signals(actor_ref);
     }
 
     /// Get information about the runtime and the environment it's running in.

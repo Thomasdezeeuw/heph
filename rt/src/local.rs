@@ -9,7 +9,7 @@ use std::task;
 use std::time::Instant;
 use std::{fmt, io};
 
-use heph::actor_ref::{ActorGroup, SendError};
+use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
 use crate::metrics::LocalMetrics;
 use crate::rt::{TimerToken, Timers};
@@ -35,6 +35,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     fn run_user_function(self: Rc<Self>, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>);
 
     fn local_sq(&self) -> a10::SubmissionQueue;
+    fn receive_signals(&self, actor_ref: ActorRef<process::Signal>);
 
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
@@ -245,6 +246,10 @@ impl LocalRuntimeData for RuntimeInternals {
 
     fn local_sq(&self) -> a10::SubmissionQueue {
         self.ring.borrow().sq()
+    }
+
+    fn receive_signals(&self, actor_ref: ActorRef<process::Signal>) {
+        self.signal_receivers.borrow_mut().add_unique(actor_ref);
     }
 
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
