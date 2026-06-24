@@ -520,7 +520,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.shared.spawn_future(future, options);
+        self.internals.shared().spawn_future(future, options);
     }
 
     /// Receive process signals as messages.
@@ -625,7 +625,7 @@ where
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
         self.internals
-            .shared
+            .shared()
             .try_spawn(supervisor, new_actor, arg, options)
     }
 }
