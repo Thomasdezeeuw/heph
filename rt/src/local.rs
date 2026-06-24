@@ -19,6 +19,8 @@ use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 pub(crate) trait LocalRuntimeData: fmt::Debug {
     // NOTE: these methods are documented on RuntimeRef.
 
+    fn local_sq(&self) -> a10::SubmissionQueue;
+
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
 }
@@ -212,6 +214,10 @@ impl RuntimeInternals {
 }
 
 impl LocalRuntimeData for RuntimeInternals {
+    fn local_sq(&self) -> a10::SubmissionQueue {
+        self.ring.borrow().sq()
+    }
+
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
         self.shared.ring_pollable(sq)
     }

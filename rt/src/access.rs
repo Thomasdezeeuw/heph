@@ -166,7 +166,7 @@ pub type ThreadLocal = RuntimeRef;
 
 impl Access for ThreadLocal {
     fn sq(&self) -> SubmissionQueue {
-        self.internals.ring.borrow().sq()
+        self.internals.local_sq()
     }
 }
 
