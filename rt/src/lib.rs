@@ -569,6 +569,7 @@ impl RuntimeRef {
         self.internals.metrics()
     }
 
+    /// Future to be notified when the shared ring has events (is pollable).
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
         self.internals.shared_ring_pollable(sq)
     }

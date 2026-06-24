@@ -17,7 +17,8 @@ use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
 /// Trait to support type erasure needed by [`RuntimeRef`].
 pub(crate) trait LocalRuntimeData: fmt::Debug {
-    /// Future to be notified when the shared ring has events (is pollable).
+    // NOTE: these methods are documented on RuntimeRef.
+
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
 }
 
