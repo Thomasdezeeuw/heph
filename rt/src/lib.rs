@@ -174,7 +174,6 @@ pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod timer;
-mod timers;
 mod timing_wheel;
 pub mod trace;
 #[doc(hidden)]
