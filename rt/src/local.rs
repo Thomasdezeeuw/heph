@@ -128,7 +128,7 @@ impl RuntimeInternals {
     }
 
     /// Print metrics about the runtime internals.
-    pub(crate) fn log_metrics(&self) {
+    fn log_metrics(&self) {
         let timing = trace::start(&*self.trace_log.borrow());
         let metrics = self.local_metrics();
         log::info!(
@@ -158,7 +158,7 @@ impl RuntimeInternals {
     }
 
     /// Set a fatal worker error.
-    pub(crate) fn set_err(&self, err: worker::Error) {
+    fn set_err(&self, err: worker::Error) {
         let mut got_err = self.error.borrow_mut();
         // We always keep the first error.
         if got_err.is_none() {
