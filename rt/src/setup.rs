@@ -190,13 +190,14 @@ where
         // Spawn the worker threads.
         let mut spawned_workers = Vec::with_capacity(threads);
         for id in 1..=threads {
-            // Coordinator has id 0.
-            let id = NonZeroUsize::new(id).unwrap();
-            let internals = internals.clone();
-            let create_timers = create_timers.clone();
-            let spawned_worker =
-                worker::spawn_thread(id, internals, create_timers, auto_cpu_affinity)
-                    .map_err(Error::start_worker)?;
+            let conf = worker::Conf {
+                // Coordinator has id 0.
+                id: NonZeroUsize::new(id).unwrap(),
+                shared_internals: internals.clone(),
+                create_timers: create_timers.clone(),
+                auto_cpu_affinity,
+            };
+            let spawned_worker = worker::spawn_thread(conf).map_err(Error::start_worker)?;
             spawned_workers.push(spawned_worker);
         }
 

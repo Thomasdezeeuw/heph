@@ -50,22 +50,26 @@ const RUN_POLL_RATIO: usize = 32;
 // TODO: make this configurable.
 const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 
+/// Configuratiob of a [`Worker`].
+pub(crate) struct Conf<FT> {
+    pub(crate) id: NonZeroUsize,
+    pub(crate) shared_internals: Arc<shared::RuntimeInternals>,
+    pub(crate) create_timers: FT,
+    pub(crate) auto_cpu_affinity: bool,
+}
+
 /// Spawn a new worker thread.
-pub(crate) fn spawn_thread<FT, T>(
-    id: NonZeroUsize,
-    shared_internals: Arc<shared::RuntimeInternals>,
-    create_timers: FT,
-    auto_cpu_affinity: bool,
-) -> io::Result<Spawned>
+pub(crate) fn spawn_thread<FT, T>(conf: Conf<FT>) -> io::Result<Spawned>
 where
     FT: FnOnce() -> T + Send + 'static,
     T: Timers + 'static,
 {
+    let id = conf.id;
     let sys_ref = Arc::new(OnceLock::new());
     let init = sys_ref.clone();
     let handle = thread::Builder::new()
         .name(format!("Worker {id}"))
-        .spawn(move || main(id, shared_internals, create_timers, auto_cpu_affinity, init))?;
+        .spawn(move || main(conf, init))?;
     Ok(Spawned {
         id,
         sys_ref,
@@ -145,28 +149,15 @@ impl Handle {
 }
 
 /// Main function of a worker thread.
-fn main<FT, T>(
-    id: NonZeroUsize,
-    shared_internals: Arc<shared::RuntimeInternals>,
-    create_timers: FT,
-    auto_cpu_affinity: bool,
-    init: Arc<OnceLock<ActorRef<Control>>>,
-) -> Result<(), Error>
+fn main<FT, T>(conf: Conf<FT>, init: Arc<OnceLock<ActorRef<Control>>>) -> Result<(), Error>
 where
     FT: FnOnce() -> T,
     T: Timers + 'static,
 {
-    let trace_log = shared_internals.worker_trace_log(id);
+    let trace_log = conf.shared_internals.worker_trace_log(conf.id);
 
     let timing = trace::start(&trace_log);
-    let worker = Worker::setup(
-        id,
-        shared_internals,
-        create_timers,
-        auto_cpu_affinity,
-        trace_log,
-        init,
-    )?;
+    let worker = Worker::setup(conf, trace_log, init)?;
     trace::finish_rt(
         worker.internals.trace_log.borrow_mut().as_mut(),
         timing,
@@ -190,16 +181,16 @@ where
 {
     /// Set up a worker.
     fn setup<FT>(
-        id: NonZeroUsize,
-        shared_internals: Arc<shared::RuntimeInternals>,
-        create_timers: FT,
-        #[allow(unused_variables)] auto_cpu_affinity: bool,
+        conf: Conf<FT>,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
     ) -> Result<Worker<T>, Error>
     where
         FT: FnOnce() -> T,
     {
+        #[rustfmt::skip]
+        let Conf { id, shared_internals, create_timers, auto_cpu_affinity } = conf;
+
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
         let config = config
@@ -224,6 +215,8 @@ where
                 }
             }
         }
+        #[cfg(not(any(target_os = "android", target_os = "linux")))]
+        let _ = auto_cpu_affinity; // Silence unused code warning.
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
