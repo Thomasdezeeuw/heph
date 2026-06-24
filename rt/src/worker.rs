@@ -27,10 +27,9 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::local::RuntimeInternals;
 use crate::spawn::options::ActorOptions;
 use crate::util::next;
-use crate::{self as rt, Access, RuntimeRef, ThreadLocal, process, shared, trace};
+use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 2;
@@ -163,7 +162,7 @@ fn main(
 /// holds and manages everything that is required to run them.
 pub(crate) struct Worker {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<RuntimeInternals>,
+    internals: Rc<local::RuntimeInternals>,
 }
 
 impl Worker {
@@ -202,7 +201,7 @@ impl Worker {
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
-        let internals = Rc::new(RuntimeInternals::new(
+        let internals = Rc::new(local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,

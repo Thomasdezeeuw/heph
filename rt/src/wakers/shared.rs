@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::task;
 
 use crate::scheduler::ProcessId;
-use crate::shared::RuntimeInternals;
+use crate::shared;
 
 /// Maximum number of runtimes supported.
 const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
@@ -24,7 +24,7 @@ pub(crate) struct Wakers {
 
 impl Wakers {
     /// Create a new `Wakers` waking processes in `internals`'s scheduler.
-    pub(crate) fn new(internals: Weak<RuntimeInternals>) -> Wakers {
+    pub(crate) fn new(internals: Weak<shared::RuntimeInternals>) -> Wakers {
         /// Static used to determine unique indices into `RUNTIMES`.
         static IDS: AtomicU8 = AtomicU8::new(0);
 
@@ -70,13 +70,13 @@ struct WakersId(u8);
 /// ensures that only a single write happens to each element of the array. And
 /// because after the initial write each element is read only there are no
 /// further data races possible.
-static mut RUNTIMES: [Weak<RuntimeInternals>; MAX_RUNTIMES] = [NO_RUNTIME; MAX_RUNTIMES];
+static mut RUNTIMES: [Weak<shared::RuntimeInternals>; MAX_RUNTIMES] = [NO_RUNTIME; MAX_RUNTIMES];
 // NOTE: this is only here because `NO_WAKER` is not `Copy`, thus
 // `[None; MAX_THREADS]` doesn't work, but explicitly using a `const` does.
-const NO_RUNTIME: Weak<RuntimeInternals> = Weak::new();
+const NO_RUNTIME: Weak<shared::RuntimeInternals> = Weak::new();
 
 /// Get the internals for `waker_id`.
-fn get(waker_id: WakersId) -> &'static Weak<RuntimeInternals> {
+fn get(waker_id: WakersId) -> &'static Weak<shared::RuntimeInternals> {
     // SAFETY: `WakersId` is only created by `Wakers::new`, which ensures its
     // valid. Furthermore `Wakers::new` ensures that `RUNTIMES[waker_id]` is
     // initialised and is read-only after that. See `RUNTIMES` docs for more.
