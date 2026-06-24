@@ -192,7 +192,7 @@ impl RuntimeInternals<TimingWheel> {
 
 impl<T> LocalRuntimeData for RuntimeInternals<T>
 where
-    T: Timers + fmt::Debug + 'static,
+    T: Timers + 'static,
 {
     fn worker_id(&self) -> NonZeroUsize {
         self.id

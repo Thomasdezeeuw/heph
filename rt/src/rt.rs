@@ -4,11 +4,11 @@
 
 // TODO: maybe rename this? Not a fan of the repeating name.
 
-use std::task;
 use std::time::{Duration, Instant};
+use std::{fmt, task};
 
 /// Timers implementation.
-pub trait Timers {
+pub trait Timers: fmt::Debug {
     /// Returns the next deadline, if any.
     fn next_deadline(&mut self) -> Option<Instant>;
 
@@ -58,7 +58,7 @@ pub trait Timers {
 ///
 /// The methods on this trait are the same as on [`Timers`], but take a
 /// reference to self, rather than a mutable reference.
-pub trait SharedTimers {
+pub trait SharedTimers: fmt::Debug {
     /// Returns the next deadline, if any.
     fn next_deadline(&self) -> Option<Instant>;
 
