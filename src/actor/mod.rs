@@ -221,11 +221,12 @@ pub trait NewActor {
     /// ```
     /// # #![feature(never_type)]
     /// use std::io;
+    /// use std::net::SocketAddr;
     /// use heph::actor::{self, actor_fn, NewActor};
     /// # use heph::messages::Terminate;
     /// # use heph::supervisor::SupervisorStrategy;
-    /// use heph_rt::net::{tcp, TcpStream};
-    /// # use heph_rt::net::tcp::server;
+    /// use heph_rt::fd::AsyncFd;
+    /// use heph_rt::net::{Server, ServerError};
     /// use heph_rt::spawn::ActorOptions;
     /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
     /// # use log::error;
@@ -250,23 +251,47 @@ pub trait NewActor {
     ///
     ///     // For more information about the remainder of this example see
     ///     // the `net::tcp::server` module in the heph-rt crate.
-    ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+    ///     let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
+    ///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let actor_ref =
-    ///     runtime_ref.spawn_local(server_supervisor, server, (), ActorOptions::default());
+    ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref.try_send(Terminate).unwrap();
     ///     Ok(())
     /// }
     ///
-    /// # fn server_supervisor(err: server::Error<!>) -> SupervisorStrategy<()> {
-    /// #   match err {
-    /// #       server::Error::Accept(err) => error!("error accepting new connection: {err}"),
-    /// #       server::Error::NewActor::<!>(_) => {},
-    /// #   }
-    /// #   SupervisorStrategy::Restart(())
+    /// # /// Our supervisor for the server.
+    /// # #[derive(Copy, Clone, Debug)]
+    /// # struct ServerSupervisor;
+    /// #
+    /// # impl<NA> heph::Supervisor<NA> for ServerSupervisor
+    /// # where
+    /// #     NA: heph::NewActor<Argument = (), Error = io::Error>,
+    /// #     NA::Actor: heph::Actor<Error = ServerError<!>>,
+    /// # {
+    /// #     fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
+    /// #         match err {
+    /// #             // When we hit an error accepting a connection we'll drop the old
+    /// #             // listener and create a new one.
+    /// #             ServerError::Accept(err) => {
+    /// #                 log::error!("error accepting new connection: {err}");
+    /// #                 SupervisorStrategy::Restart(())
+    /// #             }
+    /// #             // Async function never return an error creating a new actor.
+    /// #             ServerError::NewActor(err) => err,
+    /// #         }
+    /// #     }
+    /// #
+    /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+    /// #         log::error!("failed to restart listener, trying again: {err}");
+    /// #         SupervisorStrategy::Restart(())
+    /// #     }
+    /// #
+    /// #     fn second_restart_error(&mut self, err: io::Error) {
+    /// #         log::error!("failed to restart listener a second time, stopping it: {err}");
+    /// #     }
     /// # }
     /// #
-    /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+    /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
     /// #   error!("error handling connection: {err}");
     /// #   SupervisorStrategy::Stop
     /// # }
@@ -274,7 +299,7 @@ pub trait NewActor {
     /// // Actor that handles a connection.
     /// async fn conn_actor(
     ///     ctx: actor::Context<!, ThreadLocal>,
-    ///     stream: TcpStream,
+    ///     stream: AsyncFd,
     ///     greet_mars: bool
     /// ) -> io::Result<()> {
     /// #   drop(ctx); // Silence dead code warnings.

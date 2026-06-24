@@ -61,7 +61,6 @@
 //! to the same actor.
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph::future::ActorFuture;

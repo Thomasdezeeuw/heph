@@ -300,8 +300,6 @@ where
 /// # Example
 ///
 /// ```
-/// #![feature(never_type)]
-///
 /// use heph::ActorFuture;
 /// use heph::actor::{self, actor_fn};
 /// use heph::supervisor::NoSupervisor;
