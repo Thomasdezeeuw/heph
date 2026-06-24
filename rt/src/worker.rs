@@ -51,16 +51,21 @@ const RUN_POLL_RATIO: usize = 32;
 const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 
 /// Spawn a new worker thread.
-pub(crate) fn spawn_thread(
+pub(crate) fn spawn_thread<FT, T>(
     id: NonZeroUsize,
     shared_internals: Arc<shared::RuntimeInternals>,
+    create_timers: FT,
     auto_cpu_affinity: bool,
-) -> io::Result<Spawned> {
+) -> io::Result<Spawned>
+where
+    FT: FnOnce() -> T + Send + 'static,
+    T: Timers + 'static,
+{
     let sys_ref = Arc::new(OnceLock::new());
     let init = sys_ref.clone();
     let handle = thread::Builder::new()
         .name(format!("Worker {id}"))
-        .spawn(move || main(id, shared_internals, auto_cpu_affinity, init))?;
+        .spawn(move || main(id, shared_internals, create_timers, auto_cpu_affinity, init))?;
     Ok(Spawned {
         id,
         sys_ref,
@@ -140,16 +145,28 @@ impl Handle {
 }
 
 /// Main function of a worker thread.
-fn main(
+fn main<FT, T>(
     id: NonZeroUsize,
     shared_internals: Arc<shared::RuntimeInternals>,
+    create_timers: FT,
     auto_cpu_affinity: bool,
     init: Arc<OnceLock<ActorRef<Control>>>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    FT: FnOnce() -> T,
+    T: Timers + 'static,
+{
     let trace_log = shared_internals.worker_trace_log(id);
 
     let timing = trace::start(&trace_log);
-    let worker = Worker::setup(id, shared_internals, auto_cpu_affinity, trace_log, init)?;
+    let worker = Worker::setup(
+        id,
+        shared_internals,
+        create_timers,
+        auto_cpu_affinity,
+        trace_log,
+        init,
+    )?;
     trace::finish_rt(
         worker.internals.trace_log.borrow_mut().as_mut(),
         timing,
@@ -162,20 +179,27 @@ fn main(
 
 /// Worker that runs thread-local and thread-safe actors and futurers, and
 /// holds and manages everything that is required to run them.
-pub(crate) struct Worker {
+pub(crate) struct Worker<T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<local::RuntimeInternals<crate::timing_wheel::TimingWheel>>, // TODO.
+    internals: Rc<local::RuntimeInternals<T>>,
 }
 
-impl Worker {
+impl<T> Worker<T>
+where
+    T: Timers + 'static,
+{
     /// Set up a worker.
-    fn setup(
+    fn setup<FT>(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
+        create_timers: FT,
         #[allow(unused_variables)] auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
-    ) -> Result<Worker, Error> {
+    ) -> Result<Worker<T>, Error>
+    where
+        FT: FnOnce() -> T,
+    {
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
         let config = config
@@ -207,7 +231,7 @@ impl Worker {
             id,
             shared_internals,
             ring,
-            crate::timing_wheel::TimingWheel::new(), // TODO.
+            create_timers(),
             cpu_affinity,
             trace_log,
         ));
@@ -506,7 +530,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     }
 }
 
-impl Drop for Worker {
+impl<T> Drop for Worker<T> {
     fn drop(&mut self) {
         self.internals.shared.notify_worker_stop(self.internals.id);
     }

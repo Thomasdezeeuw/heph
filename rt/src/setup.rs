@@ -6,6 +6,8 @@ use std::{env, thread};
 
 use heph::actor_ref::ActorGroup;
 
+use crate::rt::Timers;
+use crate::timing_wheel::TimingWheel;
 use crate::trace;
 use crate::{Error, Runtime, coordinator, shared, worker};
 
@@ -17,11 +19,13 @@ use crate::{Error, Runtime, coordinator, shared, worker};
 /// [crate documentation]: crate#running-hephs-runtime
 #[derive(Debug)]
 #[must_use = "`heph_rt::Setup` doesn't do anything until its `build`"]
-pub struct Setup {
+pub struct Setup<FT = DefaultTimers> {
     /// Name of the application.
     name: Option<String>,
     /// Number of worker threads to create.
     threads: usize,
+    /// Function to create a [`Timers`] implementation per worker thread.
+    create_timers: FT,
     /// Whether or not to automatically set CPU affinity.
     auto_cpu_affinity: bool,
     /// Optional trace log.
@@ -34,16 +38,23 @@ impl Setup {
         Setup {
             name: None,
             threads: 1,
+            create_timers: TimingWheel::new,
             auto_cpu_affinity: false,
             trace_log: None,
         }
     }
+}
 
+impl<FT, T> Setup<FT>
+where
+    FT: FnOnce() -> T + Clone + Send + 'static,
+    T: Timers + 'static,
+{
     /// Set the name of the application.
     ///
     /// If the name is not set when the runtime is build the name of the binary
     /// called will be used.
-    pub fn with_name(mut self, name: String) -> Setup {
+    pub fn with_name(mut self, name: String) -> Self {
         assert!(!name.is_empty(), "Can't use an empty application name");
         self.name = Some(name);
         self
@@ -86,6 +97,32 @@ impl Setup {
     /// See [`Setup::num_threads`].
     pub const fn get_threads(&self) -> usize {
         self.threads
+    }
+
+    /// Change the thread-local [`Timers`] implementation.
+    ///
+    /// The function `create_timers` will be created on each worker to create a
+    /// new [`Timers`] implementation for each thread.
+    ///
+    /// Defaults to [`TimingWheel`].
+    ///
+    /// # Notes
+    ///
+    /// This doesn't change the implementation for thread-safe timers.
+    pub fn with_timers<FT2, T2>(self, create_timers: FT2) -> Setup<FT2>
+    where
+        FT2: FnOnce() -> T2 + Clone + Send + 'static,
+        T2: Timers + 'static,
+    {
+        #[rustfmt::skip]
+        let Setup { name, threads, create_timers: _, auto_cpu_affinity, trace_log } = self;
+        Setup {
+            name,
+            threads,
+            create_timers,
+            auto_cpu_affinity,
+            trace_log,
+        }
     }
 
     /// Automatically set CPU affinity.
@@ -133,7 +170,7 @@ impl Setup {
     /// to run all the actors.
     pub fn build(self) -> Result<Runtime, Error> {
         #[rustfmt::skip]
-        let Setup { name, threads, auto_cpu_affinity, mut trace_log } = self;
+        let Setup { name, threads, create_timers, auto_cpu_affinity, mut trace_log } = self;
         let timing = trace::start(&trace_log);
 
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
@@ -156,8 +193,10 @@ impl Setup {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
             let internals = internals.clone();
-            let spawned_worker = worker::spawn_thread(id, internals, auto_cpu_affinity)
-                .map_err(Error::start_worker)?;
+            let create_timers = create_timers.clone();
+            let spawned_worker =
+                worker::spawn_thread(id, internals, create_timers, auto_cpu_affinity)
+                    .map_err(Error::start_worker)?;
             spawned_workers.push(spawned_worker);
         }
 
@@ -197,3 +236,6 @@ fn default_app_name() -> String {
         None => "<unknown>".to_owned(),
     }
 }
+
+/// Uses [`TimingWheel`] as default timers implementation.
+type DefaultTimers = fn() -> TimingWheel;
