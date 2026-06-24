@@ -163,6 +163,7 @@ pub mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;
+pub mod rt;
 mod scheduler;
 mod setup;
 mod shared;
@@ -173,7 +174,7 @@ pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod timer;
-mod timers;
+mod timing_wheel;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
@@ -186,6 +187,7 @@ pub use error::Error;
 pub use setup::Setup;
 
 use info::Info;
+use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
 use scheduler::process::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
@@ -411,7 +413,7 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internals: Rc<local::RuntimeInternals>,
+    internals: Rc<dyn LocalRuntimeData>,
 }
 
 impl RuntimeRef {
@@ -502,9 +504,7 @@ impl RuntimeRef {
         let process = FutureProcess(future);
         let pid = self
             .internals
-            .scheduler
-            .borrow_mut()
-            .add_new_process(options.priority(), process);
+            .add_local_process(options.priority(), Box::pin(process));
         log::debug!(pid; "spawning thread-local future");
     }
 
@@ -518,7 +518,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.shared.spawn_future(future, options);
+        self.internals.shared().spawn_future(future, options);
     }
 
     /// Receive process signals as messages.
@@ -534,15 +534,12 @@ impl RuntimeRef {
     /// [process module]: crate::process#signal-handling
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn receive_signals(&mut self, actor_ref: ActorRef<process::Signal>) {
-        self.internals
-            .signal_receivers
-            .borrow_mut()
-            .add_unique(actor_ref);
+        self.internals.receive_signals(actor_ref);
     }
 
     /// Get information about the runtime and the environment it's running in.
     pub fn info(&self) -> &Info {
-        self.shared().info()
+        self.internals.info()
     }
 
     /// Get metrics about the shared parts of the runtime, such as thread-safe
@@ -552,7 +549,7 @@ impl RuntimeRef {
     /// unlike [`RuntimeRef::local_metrics`] which returns worker specific
     /// metrics.
     pub fn shared_metrics(&self) -> SharedMetrics {
-        self.shared().metrics()
+        self.internals.shared_metrics()
     }
 
     /// Get metrics about the local parts of the runtime, such as thread-local
@@ -562,17 +559,17 @@ impl RuntimeRef {
     /// called. See [`RuntimeRef::shared_metrics`] for metrics about the shared
     /// part of the runtime.
     pub fn local_metrics(&self) -> LocalMetrics {
-        self.internals.metrics()
+        self.internals.local_metrics()
     }
 
-    /// Returns a reference to the shared internals.
-    fn shared(&self) -> &shared::RuntimeInternals {
-        &self.internals.shared
+    /// Future to be notified when the shared ring has events (is pollable).
+    fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
+        self.internals.shared_ring_pollable(sq)
     }
 
     /// Returns a copy of the shared internals.
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
-        self.internals.shared.clone()
+        self.internals.clone_shared()
     }
 }
 
@@ -600,9 +597,7 @@ where
             .try_build(supervisor, new_actor, arg)?;
         let pid = self
             .internals
-            .scheduler
-            .borrow_mut()
-            .add_new_process(options.priority(), process);
+            .add_local_process(options.priority(), Box::pin(process));
         let name = NA::name();
         log::debug!(pid, name; "spawning thread-local actor");
         Ok(actor_ref)
@@ -628,7 +623,7 @@ where
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
         self.internals
-            .shared
+            .shared()
             .try_spawn(supervisor, new_actor, arg, options)
     }
 }

@@ -17,7 +17,7 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use crate::access::Access;
-use crate::timers::TimerToken;
+use crate::rt::TimerToken;
 
 /// Type returned when the deadline has passed.
 ///

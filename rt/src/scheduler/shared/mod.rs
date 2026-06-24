@@ -127,11 +127,12 @@ impl Scheduler {
     }
 
     /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
-    where
-        P: process::Run + Send + Sync + 'static,
-    {
-        let mut process = Box::pin(Process::new(ProcessId(0), priority, Box::pin(process)));
+    pub(crate) fn add_new_process(
+        &self,
+        priority: Priority,
+        process: Pin<Box<dyn process::Run + Send + Sync>>,
+    ) -> ProcessId {
+        let mut process = Box::pin(Process::new(ProcessId(0), priority, process));
         Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);

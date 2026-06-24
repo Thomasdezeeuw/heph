@@ -36,8 +36,8 @@ use std::{fmt, task};
 
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
+use crate::rt::TimerToken;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
-use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{Runtime, RuntimeRef, shared};
 
@@ -81,7 +81,7 @@ mod private {
     use std::task;
     use std::time::Instant;
 
-    use crate::timers::TimerToken;
+    use crate::rt::TimerToken;
     use crate::trace;
 
     /// Actual trait behind [`rt::Access`].
@@ -165,27 +165,25 @@ pub type ThreadLocal = RuntimeRef;
 
 impl Access for ThreadLocal {
     fn sq(&self) -> SubmissionQueue {
-        self.internals.ring.borrow().sq()
+        self.internals.local_sq()
     }
 }
 
 impl PrivateAccess for ThreadLocal {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        log::trace!(deadline:?; "adding timer");
-        self.internals.timers.borrow_mut().add(deadline, waker)
+        self.internals.add_local_timer(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        log::trace!(deadline:?; "removing timer");
-        self.internals.timers.borrow_mut().remove(deadline, token);
+        self.internals.remove_local_timer(deadline, token);
     }
 
     fn cpu(&self) -> Option<usize> {
-        self.internals.cpu
+        self.internals.cpu_affinity()
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
-        trace::start(&*self.internals.trace_log.borrow())
+        self.internals.start_trace()
     }
 
     fn finish_trace(
@@ -195,13 +193,8 @@ impl PrivateAccess for ThreadLocal {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        trace::finish(
-            (*self.internals.trace_log.borrow_mut()).as_mut(),
-            timing,
-            substream_id,
-            description,
-            attributes,
-        );
+        self.internals
+            .finish_trace(timing, substream_id, description, attributes);
     }
 }
 

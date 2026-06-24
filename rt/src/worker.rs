@@ -27,10 +27,11 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::local::RuntimeInternals;
+use crate::rt::Timers;
 use crate::spawn::options::ActorOptions;
+use crate::trace::Trace;
 use crate::util::next;
-use crate::{self as rt, Access, RuntimeRef, ThreadLocal, process, shared, trace};
+use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 2;
@@ -50,16 +51,21 @@ const RUN_POLL_RATIO: usize = 32;
 const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 
 /// Spawn a new worker thread.
-pub(crate) fn spawn_thread(
+pub(crate) fn spawn_thread<FT, T>(
     id: NonZeroUsize,
     shared_internals: Arc<shared::RuntimeInternals>,
+    create_timers: FT,
     auto_cpu_affinity: bool,
-) -> io::Result<Spawned> {
+) -> io::Result<Spawned>
+where
+    FT: FnOnce() -> T + Send + 'static,
+    T: Timers + 'static,
+{
     let sys_ref = Arc::new(OnceLock::new());
     let init = sys_ref.clone();
     let handle = thread::Builder::new()
         .name(format!("Worker {id}"))
-        .spawn(move || main(id, shared_internals, auto_cpu_affinity, init))?;
+        .spawn(move || main(id, shared_internals, create_timers, auto_cpu_affinity, init))?;
     Ok(Spawned {
         id,
         sys_ref,
@@ -139,16 +145,28 @@ impl Handle {
 }
 
 /// Main function of a worker thread.
-fn main(
+fn main<FT, T>(
     id: NonZeroUsize,
     shared_internals: Arc<shared::RuntimeInternals>,
+    create_timers: FT,
     auto_cpu_affinity: bool,
     init: Arc<OnceLock<ActorRef<Control>>>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    FT: FnOnce() -> T,
+    T: Timers + 'static,
+{
     let trace_log = shared_internals.worker_trace_log(id);
 
     let timing = trace::start(&trace_log);
-    let worker = Worker::setup(id, shared_internals, auto_cpu_affinity, trace_log, init)?;
+    let worker = Worker::setup(
+        id,
+        shared_internals,
+        create_timers,
+        auto_cpu_affinity,
+        trace_log,
+        init,
+    )?;
     trace::finish_rt(
         worker.internals.trace_log.borrow_mut().as_mut(),
         timing,
@@ -161,20 +179,27 @@ fn main(
 
 /// Worker that runs thread-local and thread-safe actors and futurers, and
 /// holds and manages everything that is required to run them.
-pub(crate) struct Worker {
+pub(crate) struct Worker<T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<RuntimeInternals>,
+    internals: Rc<local::RuntimeInternals<T>>,
 }
 
-impl Worker {
+impl<T> Worker<T>
+where
+    T: Timers + 'static,
+{
     /// Set up a worker.
-    fn setup(
+    fn setup<FT>(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
+        create_timers: FT,
         #[allow(unused_variables)] auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
-    ) -> Result<Worker, Error> {
+    ) -> Result<Worker<T>, Error>
+    where
+        FT: FnOnce() -> T,
+    {
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
         let config = config
@@ -202,10 +227,11 @@ impl Worker {
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
-        let internals = Rc::new(RuntimeInternals::new(
+        let internals = Rc::new(local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,
+            create_timers(),
             cpu_affinity,
             trace_log,
         ));
@@ -470,7 +496,7 @@ impl Worker {
         }
 
         let now = Instant::now();
-        match self.internals.timers.borrow_mut().next() {
+        match self.internals.timers.borrow_mut().next_deadline() {
             Some(deadline) => match deadline.checked_duration_since(now) {
                 // Deadline has already expired, so no blocking.
                 None => Some(Duration::ZERO),
@@ -504,7 +530,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     }
 }
 
-impl Drop for Worker {
+impl<T> Drop for Worker<T> {
     fn drop(&mut self) {
         self.internals.shared.notify_worker_stop(self.internals.id);
     }
@@ -550,7 +576,7 @@ impl std::error::Error for Error {
 /// Spawn all system actors.
 #[allow(clippy::assertions_on_constants)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
-    log::trace!(worker_id = runtime_ref.internals.id; "spawning {SYSTEM_ACTORS} system actors");
+    log::trace!(worker_id = runtime_ref.internals.worker_id(); "spawning {SYSTEM_ACTORS} system actors");
     let sys_ref =
         runtime_ref.spawn_local(NoSupervisor, actor_fn(comm_actor), (), ActorOptions::SYSTEM);
     let _ = runtime_ref.spawn_local(NoSupervisor, actor_fn(poll_actor), (), ActorOptions::SYSTEM);
@@ -587,28 +613,22 @@ impl fmt::Debug for Control {
 async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
-        let timing = trace::start(&*internals.trace_log.borrow());
-        log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
+        let timing = ctx.start_trace();
+        log::trace!(worker_id = internals.worker_id(), message:? = msg; "processing coordinator message");
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
-            Control::Run(f) => internals.run_user_function(f),
+            Control::Run(f) => internals.clone().run_user_function(f),
         }
-        trace::finish_rt(
-            internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Processing communication message",
-            &[],
-        );
+        ctx.finish_trace(timing, "Processing communication message", &[]);
     }
 }
 
 /// System actor that polls the shared ring.
-async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
+async fn poll_actor(mut ctx: actor::Context<!, ThreadLocal>) {
     let mut pollable = ctx
         .runtime_ref()
-        .shared()
-        .ring_pollable(ctx.runtime_ref().sq());
+        .shared_ring_pollable(ctx.runtime_ref().sq());
     while let Some(res) = next(&mut pollable).await {
         if let Err(err) = res {
             log::warn!("error checking if ring is pollable: {err}");
@@ -616,16 +636,11 @@ async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
         }
 
         let internals = &ctx.runtime_ref().internals;
-        let timing = trace::start(&*internals.trace_log.borrow());
-        log::trace!(worker_id = internals.id; "polling shared ring");
-        if let Err(err) = internals.shared.try_poll_ring() {
+        let timing = ctx.start_trace();
+        log::trace!(worker_id = internals.worker_id(); "polling shared ring");
+        if let Err(err) = internals.try_poll_shared_ring() {
             log::warn!("error polling shared ring: {err}");
         }
-        trace::finish_rt(
-            internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Polling shared ring",
-            &[],
-        );
+        ctx.finish_trace(timing, "Polling shared ring", &[]);
     }
 }

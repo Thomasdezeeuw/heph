@@ -100,12 +100,13 @@ impl<S: Schedule> Scheduler<S> {
     }
 
     /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
-    where
-        P: process::Run + 'static,
-    {
+    pub(crate) fn add_new_process(
+        &mut self,
+        priority: Priority,
+        process: Pin<Box<dyn process::Run>>,
+    ) -> ProcessId {
         let pid = self.reserve_slot();
-        let process = Box::pin(Process::<S>::new(pid, priority, Box::pin(process)));
+        let process = Box::pin(Process::<S>::new(pid, priority, process));
         self.ready.push(process);
         pid
     }
