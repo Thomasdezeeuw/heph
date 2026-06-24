@@ -24,8 +24,18 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     fn worker_id(&self) -> NonZeroUsize;
     fn cpu_affinity(&self) -> Option<usize>;
     fn local_sq(&self) -> a10::SubmissionQueue;
+
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
+
+    fn start_trace(&self) -> Option<trace::EventTiming>;
+    fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    );
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
@@ -240,6 +250,26 @@ impl LocalRuntimeData for RuntimeInternals {
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken) {
         log::trace!(deadline:?, token:?; "removing local timer");
         self.timers.borrow_mut().remove(deadline, token);
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        trace::start(&*self.trace_log.borrow())
+    }
+
+    fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        trace::finish(
+            (*self.trace_log.borrow_mut()).as_mut(),
+            timing,
+            substream_id,
+            description,
+            attributes,
+        );
     }
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {

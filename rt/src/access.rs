@@ -184,7 +184,7 @@ impl PrivateAccess for ThreadLocal {
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
-        trace::start(&*self.internals.trace_log.borrow())
+        self.internals.start_trace()
     }
 
     fn finish_trace(
@@ -194,13 +194,8 @@ impl PrivateAccess for ThreadLocal {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        trace::finish(
-            (*self.internals.trace_log.borrow_mut()).as_mut(),
-            timing,
-            substream_id,
-            description,
-            attributes,
-        );
+        self.internals
+            .finish_trace(timing, substream_id, description, attributes);
     }
 }
 
