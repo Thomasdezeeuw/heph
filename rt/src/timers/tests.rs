@@ -201,7 +201,7 @@ fn remove_never_added_deadline() {
     let deadline = timers.epoch + Duration::from_millis(10);
     assert_eq!(timers.next(), None);
     assert_eq!(timers.expire_timers(timers.epoch), 0);
-    timers.remove(deadline, TimerToken(0));
+    timers.remove(deadline, TimerToken::new(0));
     assert_eq!(timers.next(), None);
     assert_eq!(timers.expire_timers(timers.epoch), 0);
 }
@@ -504,7 +504,7 @@ mod shared {
         assert_eq!(timers.next(), None);
         assert_eq!(timers.expire_timers(epoch), 0);
         let deadline = epoch + Duration::from_millis(10);
-        timers.remove(deadline, TimerToken(0));
+        timers.remove(deadline, TimerToken::new(0));
         assert_eq!(timers.next(), None);
         assert_eq!(timers.expire_timers(epoch), 0);
     }

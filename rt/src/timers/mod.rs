@@ -47,19 +47,7 @@ pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
-mod private {
-    //! [`TimerToken`] needs to be public because it's used in the
-    //! private-in-public trait [`PrivateAccess`], so we use the same trick
-    //! here.
-    //!
-    //! [`PrivateAccess`]: crate::access::PrivateAccess
-
-    /// Token used to expire a timer.
-    #[derive(Copy, Clone, Debug)]
-    pub struct TimerToken(pub(crate) usize);
-}
-
-pub(crate) use private::TimerToken;
+pub(crate) use crate::rt::TimerToken;
 
 use std::cmp::{max, min};
 use std::task;
@@ -325,7 +313,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker
     let idx = match timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
         Ok(idx) | Err(idx) => idx,
     };
-    let token = TimerToken(waker.data() as usize);
+    let token = TimerToken::new(waker.data() as usize);
     timers.insert(idx, Timer { deadline, waker });
     token
 }
@@ -334,7 +322,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker
 #[allow(clippy::needless_pass_by_value)]
 fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
     if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
-        if timers[idx].waker.data() as usize == token.0 {
+        if timers[idx].waker.data() as usize == token.data() {
             _ = timers.remove(idx);
         }
     }
