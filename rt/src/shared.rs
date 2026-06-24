@@ -14,13 +14,14 @@ use heph::{ActorFutureBuilder, NewActor};
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
+use crate::rt::SharedTimers;
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::timers::TimerToken;
-use crate::timers::shared::Timers;
+use crate::timing_wheel::SharedTimingWheel;
 use crate::wakers::shared::Wakers;
 use crate::{ThreadSafe, trace};
 
@@ -40,7 +41,7 @@ pub(crate) struct RuntimeInternals {
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Timers for thread-safe actors.
-    timers: Timers,
+    timers: SharedTimingWheel,
     /// Shared trace log.
     ///
     /// # Notes
@@ -78,7 +79,7 @@ impl RuntimeInternals {
                 sq,
                 wakers,
                 scheduler: Scheduler::new(),
-                timers: Timers::new(),
+                timers: SharedTimingWheel::new(),
                 trace_log,
                 coordinator_sq,
                 worker_shutdown: OnceLock::new(),
@@ -97,7 +98,7 @@ impl RuntimeInternals {
             scheduler_ready: self.scheduler.ready(),
             scheduler_inactive: self.scheduler.inactive(),
             timers: self.timers.len(),
-            timers_next: self.timers.next_timer(),
+            timers_next: self.timers.until_next_deadline(),
             trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
         }
     }
@@ -127,7 +128,7 @@ impl RuntimeInternals {
 
     /// Add a timer.
     ///
-    /// See [`Timers::add`].
+    /// See [`SharedTimers::add`].
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
         log::trace!(deadline:?; "adding timer");
         self.timers.add(deadline, waker)
@@ -135,7 +136,7 @@ impl RuntimeInternals {
 
     /// Remove a previously set timer.
     ///
-    /// See [`Timers::remove`].
+    /// See [`SharedTimers::remove`].
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
         log::trace!(deadline:?; "removing timer");
         self.timers.remove(deadline, token);
@@ -143,7 +144,7 @@ impl RuntimeInternals {
 
     /// Wake all futures who's timers has expired.
     ///
-    /// See [`Timers::expire_timers`].
+    /// See [`SharedTimers::expire_timers`].
     pub(crate) fn expire_timers(&self, now: Instant) -> usize {
         self.timers.expire_timers(now)
     }
@@ -157,7 +158,7 @@ impl RuntimeInternals {
     /// return `current`. Otherwise this will return a timeout based on the
     /// next deadline.
     pub(crate) fn next_timeout(&self, now: Instant, current: Option<Duration>) -> Option<Duration> {
-        match self.timers.next() {
+        match self.timers.next_deadline() {
             Some(deadline) => match deadline.checked_duration_since(now) {
                 // Timer has already expired, so no blocking.
                 None => Some(Duration::ZERO),
