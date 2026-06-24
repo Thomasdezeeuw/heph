@@ -14,13 +14,12 @@ use heph::{ActorFutureBuilder, NewActor};
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
-use crate::rt::SharedTimers;
+use crate::rt::{SharedTimers, TimerToken};
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
-use crate::timers::TimerToken;
 use crate::timing_wheel::SharedTimingWheel;
 use crate::wakers::shared::Wakers;
 use crate::{ThreadSafe, trace};
