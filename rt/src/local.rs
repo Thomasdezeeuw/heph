@@ -6,20 +6,24 @@ use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::task;
+use std::time::Instant;
 
 use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::metrics::LocalMetrics;
-use crate::rt::Timers;
+use crate::rt::{TimerToken, Timers};
 use crate::scheduler::Scheduler;
 use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
 /// Trait to support type erasure needed by [`RuntimeRef`].
 pub(crate) trait LocalRuntimeData: fmt::Debug {
-    // NOTE: these methods are documented on RuntimeRef.
+    // NOTE: these methods are documented on RuntimeRef or PrivateAccess.
 
     fn local_sq(&self) -> a10::SubmissionQueue;
+    fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
+    fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
@@ -216,6 +220,16 @@ impl RuntimeInternals {
 impl LocalRuntimeData for RuntimeInternals {
     fn local_sq(&self) -> a10::SubmissionQueue {
         self.ring.borrow().sq()
+    }
+
+    fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        log::trace!(deadline:?; "adding local timer");
+        self.timers.borrow_mut().add(deadline, waker)
+    }
+
+    fn remove_local_timer(&self, deadline: Instant, token: TimerToken) {
+        log::trace!(deadline:?, token:?; "removing local timer");
+        self.timers.borrow_mut().remove(deadline, token);
     }
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {

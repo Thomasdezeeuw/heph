@@ -36,8 +36,8 @@ use std::{fmt, task};
 
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
+use crate::local::LocalRuntimeData;
 use crate::rt::TimerToken;
-use crate::rt::Timers;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
 use crate::{Runtime, RuntimeRef, shared};
@@ -172,13 +172,11 @@ impl Access for ThreadLocal {
 
 impl PrivateAccess for ThreadLocal {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        log::trace!(deadline:?; "adding timer");
-        self.internals.timers.borrow_mut().add(deadline, waker)
+        self.internals.add_local_timer(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        log::trace!(deadline:?; "removing timer");
-        self.internals.timers.borrow_mut().remove(deadline, token);
+        self.internals.remove_local_timer(deadline, token);
     }
 
     fn cpu(&self) -> Option<usize> {
