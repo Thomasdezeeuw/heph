@@ -17,6 +17,7 @@ use crate::metrics::{LocalMetrics, SharedMetrics};
 use crate::rt::{TimerToken, Timers};
 use crate::scheduler::{self, Scheduler};
 use crate::spawn::options::Priority;
+#[cfg(any(test, feature = "test"))]
 use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
 
