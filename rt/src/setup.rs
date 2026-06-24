@@ -2,6 +2,7 @@
 
 use std::num::NonZeroUsize;
 use std::path::{self, Path};
+use std::time::Duration;
 use std::{env, thread};
 
 use heph::actor_ref::ActorGroup;
@@ -28,6 +29,13 @@ pub struct Setup<FT = DefaultTimers> {
     create_timers: FT,
     /// Whether or not to automatically set CPU affinity.
     auto_cpu_affinity: bool,
+    /// Number of processes to run in between calls to poll.
+    run_poll_ratio: usize,
+    /// Target time for the duration of a single iteration of the event loop.
+    ///
+    /// If the event loop iteration elapses this timeout no more processes are
+    /// run, regardless of how many have run so far.
+    max_run_time: Duration,
     /// Optional trace log.
     trace_log: Option<trace::CoordinatorLog>,
 }
@@ -40,6 +48,8 @@ impl Setup {
             threads: 1,
             create_timers: TimingWheel::new,
             auto_cpu_affinity: false,
+            run_poll_ratio: 32,
+            max_run_time: Duration::from_millis(5),
             trace_log: None,
         }
     }
@@ -115,12 +125,14 @@ where
         T2: Timers + 'static,
     {
         #[rustfmt::skip]
-        let Setup { name, threads, create_timers: _, auto_cpu_affinity, trace_log } = self;
+        let Setup { name, threads, create_timers: _, auto_cpu_affinity, run_poll_ratio, max_run_time, trace_log } = self;
         Setup {
             name,
             threads,
             create_timers,
             auto_cpu_affinity,
+            run_poll_ratio,
+            max_run_time,
             trace_log,
         }
     }
@@ -147,6 +159,37 @@ where
         self
     }
 
+    /// Maximum number of processes to run in between polling for more events
+    /// (such as I/O events).
+    ///
+    /// Defaults to 32.
+    ///
+    /// # Notes
+    ///
+    /// Also see [`Setup::with_max_run_time`] to change the maximum duration
+    /// between polls.
+    pub const fn with_run_poll_ratio(mut self, ratio: usize) -> Self {
+        self.run_poll_ratio = ratio;
+        self
+    }
+
+    /// Maximum time to run processes, before polling for more events.
+    ///
+    /// If the event loop iteration elapses this timeout no more processes are
+    /// run, regardless of how many have run so far and instead we poll for more
+    /// events.
+    ///
+    /// Defaults to 5 milliseconds.
+    ///
+    /// # Notes
+    ///
+    /// Also see [`Setup::with_run_poll_ratio`] to change the maximum number of
+    /// processes run between polls.
+    pub const fn with_max_run_time(mut self, timeout: Duration) -> Self {
+        self.max_run_time = timeout;
+        self
+    }
+
     /// Generate a trace of the runtime, writing it to the file specified by
     /// `path`.
     ///
@@ -170,7 +213,7 @@ where
     /// to run all the actors.
     pub fn build(self) -> Result<Runtime, Error> {
         #[rustfmt::skip]
-        let Setup { name, threads, create_timers, auto_cpu_affinity, mut trace_log } = self;
+        let Setup { name, threads, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time, mut trace_log } = self;
         let timing = trace::start(&trace_log);
 
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
@@ -196,6 +239,8 @@ where
                 shared_internals: internals.clone(),
                 create_timers: create_timers.clone(),
                 auto_cpu_affinity,
+                run_poll_ratio,
+                max_run_time,
             };
             let spawned_worker = worker::spawn_thread(conf).map_err(Error::start_worker)?;
             spawned_workers.push(spawned_worker);

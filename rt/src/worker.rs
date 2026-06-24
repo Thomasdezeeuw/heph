@@ -36,26 +36,14 @@ use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared,
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 2;
 
-/// Number of processes to run in between calls to poll.
-///
-/// This number is chosen arbitrarily.
-// TODO: find a good balance between polling, polling user space events only and
-// running processes.
-const RUN_POLL_RATIO: usize = 32;
-
-/// Target time for the duration of a single iteration of the event loop.
-///
-/// If the event loop iteration elapses this timeout no more processes are run,
-/// regardless of how many have run so far.
-// TODO: make this configurable.
-const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
-
 /// Configuratiob of a [`Worker`].
 pub(crate) struct Conf<FT> {
     pub(crate) id: NonZeroUsize,
     pub(crate) shared_internals: Arc<shared::RuntimeInternals>,
     pub(crate) create_timers: FT,
     pub(crate) auto_cpu_affinity: bool,
+    pub(crate) run_poll_ratio: usize,
+    pub(crate) max_run_time: Duration,
 }
 
 /// Spawn a new worker thread.
@@ -173,6 +161,9 @@ where
 pub(crate) struct Worker<T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
     internals: Rc<local::RuntimeInternals<T>>,
+    // See Setup options with the same name for documentation.
+    run_poll_ratio: usize,
+    max_run_time: Duration,
 }
 
 impl<T> Worker<T>
@@ -189,7 +180,7 @@ where
         FT: FnOnce() -> T,
     {
         #[rustfmt::skip]
-        let Conf { id, shared_internals, create_timers, auto_cpu_affinity } = conf;
+        let Conf { id, shared_internals, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time } = conf;
 
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
@@ -240,7 +231,11 @@ where
         assert!(res.is_ok());
         drop(init);
 
-        Ok(Worker { internals })
+        Ok(Worker {
+            internals,
+            run_poll_ratio,
+            max_run_time,
+        })
     }
 
     /// Run the worker.
@@ -251,7 +246,7 @@ where
             // return if there are no processes to run.
             let mut n = 0;
             let mut elapsed = Duration::ZERO;
-            while n < RUN_POLL_RATIO && elapsed < MAX_EVENT_LOOP_DURATION {
+            while n < self.run_poll_ratio && elapsed < self.max_run_time {
                 match self.run_local_process() {
                     Some(process_elapsed) => {
                         n += 1;
@@ -260,7 +255,7 @@ where
                     None => break,
                 }
             }
-            while n < RUN_POLL_RATIO && elapsed < MAX_EVENT_LOOP_DURATION {
+            while n < self.run_poll_ratio && elapsed < self.max_run_time {
                 match self.run_shared_process() {
                     Some(process_elapsed) => {
                         n += 1;
