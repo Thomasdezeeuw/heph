@@ -1,7 +1,16 @@
 //! Runtime setup.
 //!
-//! See [`Setup`] for setting up a new [`Runtime`].
-//! This module contains the various parts that make up the Heph runtime.
+//! This module allows changing various components that make up the Heph
+//! [`Runtime`]. The setup is created via [`Runtime::setup`] and then configured
+//! using the methods on [`Setup`].
+//!
+//! Along with various settings, such as the number of worker threads and the
+//! application name, Heph also allows for large components of the runtime to
+//! be implemented externally via traits. These include:
+//!  * Timers for thread-local processes (actors and futures) in [`Timers`].
+//!    Defaulting to [`TimingWheel`].
+//!  * Timers for thread-safe processes in [`SharedTimers`].
+//!    Defaulting to [`SharedTimingWheel`].
 
 use std::num::NonZeroUsize;
 use std::path::{self, Path};
