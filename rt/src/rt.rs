@@ -8,6 +8,10 @@ use std::time::{Duration, Instant};
 use std::{fmt, task};
 
 /// Timers implementation.
+///
+/// This implementation is used only for the thread-local timers implementation.
+/// See [`SharedTimers`] for the thread-safe implementation, which is mostly the
+/// same but uses a reference instead of a mutable reference.
 pub trait Timers: fmt::Debug {
     /// Returns the next deadline, if any.
     fn next_deadline(&mut self) -> Option<Instant>;
@@ -29,7 +33,7 @@ pub trait Timers: fmt::Debug {
     ///
     /// # Safety
     ///
-    /// `now` may never go backwards between calls.
+    /// `now` *must* not go backwards between calls.
     fn expire_timers(&mut self, now: Instant) -> usize;
 
     /// Add a new deadline.
@@ -37,6 +41,11 @@ pub trait Timers: fmt::Debug {
     /// The returned token can be used to cancel a timer, see [`remove`].
     ///
     /// [`remove`]: Timers::remove
+    ///
+    /// # Notes
+    ///
+    /// The returned token *may* go unused if the timer expires and never
+    /// removed, no resources should be leaked in this case.
     fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
     /// Remove a previously added deadline.
@@ -45,6 +54,12 @@ pub trait Timers: fmt::Debug {
     /// `deadline`.
     ///
     /// [`add`]: Timers::add
+    ///
+    /// # Notes
+    ///
+    /// Only when the `deadline` is the same as passed to [`add`] and the
+    /// returned `token` is this guaranteed to work, other usage is considered
+    /// invalid.
     fn remove(&mut self, deadline: Instant, token: TimerToken);
 
     /// Returns the current total number of timers.
@@ -60,10 +75,14 @@ pub trait Timers: fmt::Debug {
 /// reference to self, rather than a mutable reference.
 pub trait SharedTimers: fmt::Debug {
     /// Returns the next deadline, if any.
+    ///
+    /// See [`Timers::next_deadline`].
     fn next_deadline(&self) -> Option<Instant>;
 
     /// Same as [`next_deadline`], but returns it as a [`Duration`] instead. If
     /// the next deadline is already passed this returns a duration of zero.
+    ///
+    /// See [`Timers::until_next_deadline`].
     ///
     /// [`next_deadline`]: Timers::next_deadline
     fn until_next_deadline(&self) -> Option<Duration> {
@@ -77,27 +96,22 @@ pub trait SharedTimers: fmt::Debug {
     /// Expire all timers that have elapsed based on `now`. Returns the amount
     /// of expired timers.
     ///
-    /// # Safety
-    ///
-    /// `now` may never go backwards between calls.
+    /// See [`Timers::expire_timers`].
     fn expire_timers(&self, now: Instant) -> usize;
 
     /// Add a new deadline.
     ///
-    /// The returned token can be used to cancel a timer, see [`remove`].
-    ///
-    /// [`remove`]: Timers::remove
+    /// See [`Timers::add`].
     fn add(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
     /// Remove a previously added deadline.
     ///
-    /// The `token` should be one returned by [`add`] along with the same
-    /// `deadline`.
-    ///
-    /// [`add`]: Timers::add
+    /// See [`Timers::remove`].
     fn remove(&self, deadline: Instant, token: TimerToken);
 
     /// Returns the current total number of timers.
+    ///
+    /// See [`Timers::len`].
     fn len(&self) -> usize;
 }
 
