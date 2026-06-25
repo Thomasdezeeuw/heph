@@ -39,9 +39,9 @@
 //!
 //! ## Running Heph's runtime
 //!
-//! Building a runtime starts with calling [`setup`], which will create a new
-//! [`Setup`] builder type, which allows configuration of the [`Runtime`]. The
-//! [`new`] function can also be used, but is really only meant for quick
+//! Building a runtime starts with calling [`Runtime::setup`], which will create
+//! a new [`Setup`] builder type, which allows configuration of the [`Runtime`].
+//! The [`new`] function can also be used, but is really only meant for quick
 //! prototyping or testing.
 //!
 //! [`Setup`] has a number of configuration options. An example of one such
@@ -73,7 +73,6 @@
 //!
 //! For an example of all of the above, see below.
 //!
-//! [`setup`]: Runtime::setup
 //! [`new`]: Runtime::new
 //! [`num_threads`]: Setup::num_threads
 //! [`use_all_cores`]: Setup::use_all_cores
@@ -163,9 +162,8 @@ pub mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;
-pub mod rt;
 mod scheduler;
-mod setup;
+pub mod setup;
 mod shared;
 pub mod spawn;
 mod sync_worker;
@@ -184,12 +182,12 @@ mod worker;
 #[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
-pub use setup::Setup;
 
 use info::Info;
 use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
 use scheduler::process::FutureProcess;
+use setup::Setup;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.

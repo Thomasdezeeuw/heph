@@ -14,8 +14,8 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
-use crate::rt::{TimerToken, Timers};
 use crate::scheduler::{self, Scheduler};
+use crate::setup::{TimerToken, Timers};
 use crate::spawn::options::Priority;
 #[cfg(any(test, feature = "test"))]
 use crate::timing_wheel::TimingWheel;

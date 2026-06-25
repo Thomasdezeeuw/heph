@@ -40,7 +40,7 @@ use std::sync::RwLock;
 use std::task;
 use std::time::{Duration, Instant};
 
-use crate::rt::{SharedTimers, TimerToken, Timers};
+use crate::setup::{SharedTimers, TimerToken, Timers};
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
@@ -569,7 +569,7 @@ mod tests {
     use std::task::{Wake, Waker};
     use std::time::Duration;
 
-    use crate::rt::Timers;
+    use crate::setup::Timers;
     use crate::timing_wheel::{DURATION_PER_SLOT, NS_PER_SLOT, SLOTS, TimerToken, TimingWheel};
 
     struct WakerBuilder<const N: usize> {
@@ -908,7 +908,7 @@ mod tests {
     mod shared {
         use std::time::Duration;
 
-        use crate::rt::SharedTimers;
+        use crate::setup::SharedTimers;
         use crate::timing_wheel::tests::WakerBuilder;
         use crate::timing_wheel::{
             DURATION_PER_SLOT, NS_PER_SLOT, SLOTS, SharedTimingWheel, TimerToken,
