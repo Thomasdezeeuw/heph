@@ -46,12 +46,12 @@ impl Info {
     }
 
     /// Version of the Heph-rt crate.
-    pub fn heph_rt_version(&self) -> &'static str {
+    pub fn heph_rt_version(&self) -> &str {
         concat!("v", env!("CARGO_PKG_VERSION"))
     }
 
     /// OS name.
-    pub fn host_os(&self) -> &'static str {
+    pub fn host_os(&self) -> &str {
         // We could also use `std::env::consts::OS`, but this looks better.
         cfg_select! {
             target_os = "linux" => "GNU/Linux",
