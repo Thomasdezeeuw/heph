@@ -102,7 +102,7 @@ pub trait SharedTimers: fmt::Debug {
 }
 
 /// Token used to expire a timer.
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct TimerToken(usize);
 
 impl TimerToken {

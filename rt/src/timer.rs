@@ -123,9 +123,8 @@ impl<RT: Access> Timer<RT> {
     ///
     /// The previous timer will not trigger.
     pub fn change_deadline(&mut self, deadline: Instant) {
-        if let Some(token) = self.pending {
+        if let Some(token) = self.pending.take() {
             self.rt.remove_timer(self.deadline, token);
-            self.pending = None;
         }
         self.deadline = deadline;
     }
@@ -165,7 +164,7 @@ impl<RT: Access> Unpin for Timer<RT> {}
 
 impl<RT: Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        if let Some(token) = self.pending {
+        if let Some(token) = self.pending.take() {
             self.rt.remove_timer(self.deadline, token);
         }
     }
