@@ -162,7 +162,6 @@ pub mod metrics;
 pub mod net;
 pub mod pipe;
 pub mod process;
-pub mod rt;
 mod scheduler;
 pub mod setup;
 mod shared;
