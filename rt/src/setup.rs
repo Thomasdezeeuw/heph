@@ -1,4 +1,6 @@
-//! Module with [`Setup`].
+//! Runtime setup.
+//!
+//! See [`Setup`] for setting up a new [`Runtime`].
 
 use std::num::NonZeroUsize;
 use std::path::{self, Path};
