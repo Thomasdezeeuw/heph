@@ -4,10 +4,9 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::task::{self, Poll};
-use std::thread::{self, sleep};
-use std::time::Duration;
+use std::thread;
 
 use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
@@ -393,50 +392,33 @@ fn tracing() {
 
 #[derive(Clone)] // Needed in setup function.
 struct WaitFuture {
-    #[allow(clippy::type_complexity)]
-    inner: Arc<(Mutex<(Option<task::Waker>, bool)>, Condvar)>,
+    waker: Arc<OnceLock<task::Waker>>,
 }
 
 impl Future for WaitFuture {
     type Output = Result<(), !>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let mut guard = self.inner.0.lock().unwrap();
-        match &mut *guard {
-            (_, true) => Poll::Ready(Ok(())),
-            (waker, false) => {
-                *waker = Some(ctx.waker().clone());
-                self.inner.1.notify_all();
-                Poll::Pending
-            }
+        if let Some(w) = self.waker.get() {
+            // Second call to poll because we previously set the waker.
+            assert!(w.will_wake(ctx.waker()));
+            Poll::Ready(Ok(()))
+        } else {
+            // First call to poll.
+            self.waker.set(ctx.waker().clone()).unwrap();
+            Poll::Pending // The thread should wake us up now we set the waker.
         }
     }
 }
 
 impl WaitFuture {
     fn new() -> (WaitFuture, thread::JoinHandle<()>) {
-        let inner = Arc::new((Mutex::new((None, false)), Condvar::new()));
+        let waker = Arc::new(OnceLock::new());
         let future = WaitFuture {
-            inner: inner.clone(),
+            waker: waker.clone(),
         };
-
         let handle = thread::spawn(move || {
-            loop {
-                let mut guard = inner.0.lock().unwrap();
-                match &mut *guard {
-                    (Some(waker), called) => {
-                        // Ensure the worker thread is sleeping.
-                        sleep(Duration::from_millis(100));
-
-                        waker.wake_by_ref();
-                        *called = true;
-                        break;
-                    }
-                    (None, _) => {
-                        guard = inner.1.wait(guard).unwrap();
-                    }
-                }
-            }
+            waker.wait().wake_by_ref();
         });
         (future, handle)
     }
