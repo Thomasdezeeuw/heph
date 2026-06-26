@@ -53,7 +53,7 @@ pub trait Timers: fmt::Debug {
     ///
     /// # Notes
     ///
-    /// The returned token *may* go unused if the timer expires and never
+    /// The returned token *may* go unused if the timer expires and is never
     /// removed, no resources should be leaked in this case.
     fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
