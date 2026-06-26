@@ -428,13 +428,14 @@ impl ReadyMap {
             }
             let mut i = value.trailing_zeros();
             iter::from_fn(move || {
-                while i < u64::BITS {
+                if i < u64::BITS {
                     let idx = (n * usize::BITS as usize) as u16 + i as u16;
                     value &= !(1 << i);
                     i += (value >> i).trailing_zeros();
-                    return Some(idx);
+                    Some(idx)
+                } else {
+                    None
                 }
-                None
             })
         })
     }
