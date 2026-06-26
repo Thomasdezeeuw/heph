@@ -562,7 +562,7 @@ impl std::error::Error for Error {
 }
 
 /// Spawn all system actors.
-#[allow(clippy::assertions_on_constants)]
+#[allow(clippy::assertions_on_constants, clippy::manual_assert_eq)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
     log::trace!(worker_id = runtime_ref.internals.worker_id(); "spawning {SYSTEM_ACTORS} system actors");
     let sys_ref =

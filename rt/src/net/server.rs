@@ -424,6 +424,7 @@ fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedF
         // dropping clients.
         let value: libc::c_int = true.into();
         let ptr = ptr::from_ref(&value).cast();
+        #[allow(clippy::cast_possible_truncation)]
         let len = size_of::<libc::c_int>() as u32;
         _ = syscall!(setsockopt(
             fd,

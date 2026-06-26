@@ -129,7 +129,11 @@ impl TimingWheel {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
-    #[allow(clippy::debug_assert_with_mut_call, clippy::cast_possible_truncation)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::debug_assert_with_mut_call,
+        clippy::unchecked_time_subtraction
+    )]
     fn maybe_update_epoch(&mut self, epoch_offset: TimeOffset) -> bool {
         if epoch_offset < NS_PER_SLOT {
             // Can't move to the next slot yet.

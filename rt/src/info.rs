@@ -46,11 +46,13 @@ impl Info {
     }
 
     /// Version of the Heph-rt crate.
+    #[allow(clippy::unnecessary_literal_bound)]
     pub fn heph_rt_version(&self) -> &str {
         concat!("v", env!("CARGO_PKG_VERSION"))
     }
 
     /// OS name.
+    #[allow(clippy::unnecessary_literal_bound)]
     pub fn host_os(&self) -> &str {
         // We could also use `std::env::consts::OS`, but this looks better.
         cfg_select! {

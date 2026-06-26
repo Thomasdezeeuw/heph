@@ -221,6 +221,7 @@ impl Branch {
         self._add(process, pid, w_pid, depth, run_queue)
     }
 
+    #[allow(clippy::manual_assert_eq)]
     fn _add(
         &self,
         process: TaggedPointer,
@@ -569,6 +570,7 @@ impl fmt::Debug for Branch {
 }
 
 /// Returns the depth at which `pid1` and `pid2` use difference branches.
+#[allow(clippy::manual_assert_eq)]
 fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
     debug_assert!(pid1 != pid2);
     ((pid1.0 ^ pid2.0) >> SKIP_BITS).trailing_zeros() as usize / LEVEL_SHIFT

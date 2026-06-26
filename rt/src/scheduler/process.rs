@@ -110,6 +110,7 @@ where
 pub(crate) struct Process<S, P: ?Sized> {
     id: ProcessId,
     scheduler_data: S,
+    #[allow(clippy::struct_field_names)]
     process: Pin<Box<P>>,
 }
 

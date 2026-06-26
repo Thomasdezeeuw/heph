@@ -21,6 +21,7 @@ pub use crate::timing_wheel::{SharedTimingWheel, TimingWheel};
 /// This implementation is used only for the thread-local timers implementation.
 /// See [`SharedTimers`] for the thread-safe implementation, which is mostly the
 /// same but uses a reference instead of a mutable reference.
+#[allow(clippy::len_without_is_empty)]
 pub trait Timers: fmt::Debug {
     /// Returns the next deadline, if any.
     fn next_deadline(&mut self) -> Option<Instant>;
@@ -85,6 +86,7 @@ pub(crate) type DefaultTimers = fn() -> TimingWheel;
 ///
 /// The methods on this trait are the same as on [`Timers`], but take a
 /// reference to self, rather than a mutable reference.
+#[allow(clippy::len_without_is_empty)]
 pub trait SharedTimers: fmt::Debug {
     /// Returns the next deadline, if any.
     ///

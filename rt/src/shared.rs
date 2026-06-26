@@ -250,6 +250,7 @@ impl RuntimeInternals {
         self.scheduler.complete(process);
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn worker_trace_log(&self, worker_id: NonZeroUsize) -> Option<trace::Log> {
         self.trace_log
             .as_ref()

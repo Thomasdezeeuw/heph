@@ -13,6 +13,7 @@ use log::trace;
 
 use crate::spawn::options::Priority;
 
+#[allow(clippy::cast_possible_truncation)]
 const SYSTEM_ACTORS: u16 = crate::worker::SYSTEM_ACTORS as u16;
 
 mod cfs;
@@ -112,6 +113,7 @@ impl<S: Schedule> Scheduler<S> {
     }
 
     /// Reserve a slot for a process, returning the process id.
+    #[allow(clippy::cast_possible_truncation)]
     fn reserve_slot(&mut self) -> ProcessId {
         for (n, inactive) in self.inactive.iter_mut().enumerate().rev() {
             if usize::from(inactive.length) >= N_PROCESS_PER_GROUP {
@@ -192,6 +194,7 @@ fn pid(offset: usize, idx: u16) -> ProcessId {
 }
 
 /// Reverse of [`pid`].
+#[allow(clippy::cast_possible_truncation)]
 fn offset_idx(pid: ProcessId) -> (usize, u16) {
     let idx = (pid.0 & ((1 << GROUP_SHIFT) - 1)) as u16;
     let offset = pid.0 >> GROUP_SHIFT;
@@ -202,6 +205,7 @@ fn offset_idx(pid: ProcessId) -> (usize, u16) {
 #[derive(Debug)]
 struct Processes<S> {
     /// Process slots.
+    #[allow(clippy::struct_field_names)]
     processes: Box<[ProcessSlot<S>; N_PROCESS_PER_GROUP]>,
     /// Bitmaps indicate the processes are ready to run, but are not yet marked
     /// as such.
@@ -396,6 +400,7 @@ impl ReadyMap {
                 .cast()
         }
 
+        #[allow(clippy::cast_possible_truncation)]
         fn untag(ptr: *const ()) -> (NonNull<ReadyMapInner>, u16) {
             let index = (ptr.addr() >> (INDEX_SHIFT)) as u16;
             let ptr = ptr.map_addr(|ptr| ptr & INDEX_MASK).cast_mut().cast();
@@ -411,6 +416,7 @@ impl ReadyMap {
     ///
     /// NOTE: the iterator must be fully consumed or bits will be removed
     /// without processing.
+    #[allow(clippy::cast_possible_truncation)]
     fn set_iter(&self) -> impl Iterator<Item = u16> {
         self.inner().bits.iter().enumerate().flat_map(|(n, data)| {
             // SAFETY: using Relaxed ordering first to check if the value is
