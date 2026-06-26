@@ -421,8 +421,8 @@ impl WaitFuture {
         };
 
         let handle = thread::spawn(move || {
-            let mut guard = inner.0.lock().unwrap();
             loop {
+                let mut guard = inner.0.lock().unwrap();
                 match &mut *guard {
                     (Some(waker), called) => {
                         // Ensure the worker thread is sleeping.
