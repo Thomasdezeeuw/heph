@@ -36,7 +36,7 @@ use std::{fmt, task};
 
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
-use crate::setup::TimerToken;
+use crate::setup::timers::TimerToken;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
 use crate::{Runtime, RuntimeRef, shared};
@@ -81,7 +81,7 @@ mod private {
     use std::task;
     use std::time::Instant;
 
-    use crate::setup::TimerToken;
+    use crate::setup::timers::TimerToken;
     use crate::trace;
 
     /// Actual trait behind [`rt::Access`].

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::StopSupervisor;
-use heph_rt::setup::{TimerToken, Timers};
+use heph_rt::setup::timers::{TimerToken, Timers};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::timer::Timer;
 use heph_rt::{self as rt, Runtime, ThreadLocal};
