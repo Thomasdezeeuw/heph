@@ -491,7 +491,8 @@ where
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         (): Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        let fd = if let Some(fd) = self.socket.lock().unwrap().take() {
+        let fd = { self.socket.lock().unwrap().take() };
+        let fd = if let Some(fd) = fd {
             fd // Reuse the already created socket if we can.
         } else {
             bind_listener(self.address)? // Or create a new socket.
