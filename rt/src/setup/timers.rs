@@ -130,6 +130,9 @@ pub trait SharedTimers: fmt::Debug {
 }
 
 /// Token used to expire a timer.
+///
+/// This can only be created by one of the timers implementions and should be
+/// seen as an opaque type otherwise.
 #[derive(Debug)]
 pub struct TimerToken(usize);
 
