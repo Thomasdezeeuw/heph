@@ -17,3 +17,130 @@
 //!    `Scheduler` that can be run.
 //!
 //! See the documentation on the trait themselves for more information.
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::pin::Pin;
+use std::task::{self, Poll};
+use std::{fmt, thread};
+
+use crate::spawn::options::Priority;
+
+/// Scheduler implementation.
+///
+/// This trait defines the data structure and algorithm uses to manage all
+/// thread-local processes for a single worker in the runtime. Generally
+/// speaking, the scheduler keep track of two things: 1) all inactive processes
+/// (those that are not ready to run) and 2) a ready queue of processes that are
+/// ready to run.
+///
+pub trait Scheduler: fmt::Debug {
+    /// Process that is ready to run, see [`RunnableProcess`].
+    type RunnableProcess: RunnableProcess;
+
+    /// Returns the next process that is ready to run, if any.
+    ///
+    /// After a process is removed it's run without holding any references to
+    /// the scheduler itself, this way it can be used (mutably) to add new
+    /// processes to it while running the returned process.
+    ///
+    /// Once the process is done running either [`Scheduler::add_back_process`]
+    /// or [`Scheduler::complete_process`] is called, to ensure that the
+    /// scheduler can keep managing the process or clean up any resources
+    /// related to it.
+    fn next_process(&mut self) -> Option<Self::RunnableProcess>;
+
+    /// Add back a `process` that was run.
+    ///
+    /// The process was previously removed via [`Scheduler::next_process`] and
+    /// now is added back to the scheduler as it's not finished running (i.e. it
+    /// returned [`Poll::Pending`]).
+    fn add_back_process(&mut self, process: Self::RunnableProcess);
+
+    /// Mark a `process` as completed.
+    ///
+    /// The process was previously removed via [`Scheduler::next_process`], was
+    /// run to completion. This should clean up any lingering resource related
+    /// to the process within the scheduler.
+    ///
+    /// After any resources within the scheduler are cleaned up, the process
+    /// should be dropped. Doing so should be done using [`catch_unwind`] to
+    /// catch any panics. The result of dropping the process is expected as
+    /// return type.
+    ///
+    /// **The scheduler should not be affected if dropping the process panics**.
+    ///
+    /// The default implemementation simply drops the process (catching any
+    /// panics).
+    fn complete_process(&mut self, process: Self::RunnableProcess) -> thread::Result<()> {
+        // Don't want to panic when dropping the process.
+        catch_unwind(AssertUnwindSafe(|| drop(process)))
+    }
+
+    /// Add a new process to the scheduler.
+    fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
+    where
+        P: Process;
+
+    /// Mark all processes that are awoken as ready.
+    ///
+    /// Returns the number of processes that were awoken.
+    // TODO: better name, not sure if it's clear enough. Maybe rename/remove the
+    // "process" part.
+    fn process_wakeups(&mut self) -> usize;
+
+    /// Returns the number of processes that are ready to run.
+    fn processes_ready(&self) -> usize;
+
+    /// Returns true if the scheduler has any processes that are ready to run.
+    fn has_ready_process(&self) -> bool {
+        self.processes_ready() >= 1
+    }
+
+    /// Returns the number of processes that are inactive (not ready to run).
+    fn processes_inactive(&self) -> usize;
+
+    /// Returns true if the scheduler has any processes (in any state).
+    // TODO: how to deal with system processes for user implementations?
+    fn has_process(&self) -> bool {
+        self.has_ready_process() || self.processes_inactive() >= 1
+    }
+}
+
+/// Process id, or pid for short, is an identifier for a process in the
+/// scheduler.
+///
+/// This can only be created by one of the schedulers and should be seen as an
+/// opaque type otherwise.
+#[derive(Copy, Clone)]
+pub struct ProcessId(usize);
+
+impl ProcessId {
+    /// Create a new process id.
+    pub const fn new(id: usize) -> ProcessId {
+        ProcessId(id)
+    }
+
+    /// Returns the id passed to [`ProcessId::new`].
+    pub const fn id(self) -> usize {
+        self.0
+    }
+}
+
+impl fmt::Debug for ProcessId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for ProcessId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[doc(hidden)] // Not part of the stable API.
+impl log::kv::ToValue for ProcessId {
+    fn to_value(&self) -> log::kv::Value<'_> {
+        self.0.to_value()
+    }
+}
