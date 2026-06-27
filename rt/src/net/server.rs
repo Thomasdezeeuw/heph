@@ -59,6 +59,7 @@ use crate::{process, syscall};
 /// ```
 /// # #![feature(never_type)]
 /// use std::io;
+/// use std::net::SocketAddr;
 ///
 /// use heph::actor::{self, actor_fn, Actor, NewActor};
 /// # use heph::messages::Terminate;
@@ -79,7 +80,7 @@ use crate::{process, syscall};
 /// /// In this setup function we'll spawn the server.
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // The address to listen on.
-///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our server.
 ///     let new_actor = actor_fn(conn_actor);
 ///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
@@ -146,6 +147,7 @@ use crate::{process, syscall};
 /// ```
 /// # #![feature(never_type)]
 /// use std::io;
+/// use std::net::SocketAddr;
 ///
 /// use heph::actor::{self, actor_fn};
 /// use heph::messages::Terminate;
@@ -167,7 +169,7 @@ use crate::{process, syscall};
 ///
 ///     // Adding the server is the same as in the example above.
 ///     let new_actor = actor_fn(conn_actor);
-///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
 ///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
@@ -231,6 +233,7 @@ use crate::{process, syscall};
 /// ```
 /// # #![feature(never_type)]
 /// use std::io;
+/// use std::net::SocketAddr;
 ///
 /// use heph::actor::{self, actor_fn};
 /// # use heph::messages::Terminate;
@@ -244,7 +247,7 @@ use crate::{process, syscall};
 ///     let mut runtime = Runtime::new()?;
 ///
 ///     // The address to listen on.
-///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our server. We'll use the default actor options.
 ///     let new_actor = actor_fn(conn_actor);
 ///     let server = Server::new(address, conn_supervisor, new_actor, ActorOptions::default())

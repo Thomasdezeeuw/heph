@@ -15,8 +15,6 @@
 //! Enabling logging.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
 //! use heph_rt::Runtime;
 //!
 //! fn main() -> Result<(), heph_rt::Error> {

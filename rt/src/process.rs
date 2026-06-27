@@ -19,7 +19,6 @@
 //! A simple example of receiving a process signal:
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use heph::actor;
 //! use heph_rt::process;
 //! use heph_rt::access::ThreadLocal;
@@ -60,7 +59,6 @@
 //! Spawn processes can be waited on using [`wait`] or [`wait_on`]. For example:
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use std::io;
 //! use std::process::Command;
 //!
