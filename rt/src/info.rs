@@ -176,7 +176,7 @@ fn host_id() -> io::Result<Uuid> {
 #[cfg(target_os = "linux")]
 fn from_hex(input: &[u8]) -> Result<Uuid, ()> {
     let mut bytes = [0; 16];
-    for (idx, chunk) in input.chunks_exact(2).enumerate() {
+    for (idx, chunk) in input.as_chunks::<2>().0.into_iter().enumerate() {
         let lower = from_hex_byte(chunk[1])?;
         let higher = from_hex_byte(chunk[0])?;
         bytes[idx] = lower | (higher << 4);
