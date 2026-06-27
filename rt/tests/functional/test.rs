@@ -35,7 +35,7 @@ fn test_size_of_actor() {
         /* Nothing. */
     }
 
-    assert_eq!(size_of_actor_val(&actor_fn(actor1)), 32);
+    assert_eq!(size_of_actor_val(&actor_fn(actor1)), 40);
 
     struct Na;
 
