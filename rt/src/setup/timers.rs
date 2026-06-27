@@ -143,7 +143,7 @@ impl TimerToken {
     }
 
     /// Returns the data passed to [`TimerToken::new`].
-    pub fn data(self) -> usize {
+    pub const fn data(self) -> usize {
         self.0
     }
 }
