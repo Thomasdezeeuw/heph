@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(async_iterator, cfg_sanitize)]
+#![feature(async_iterator)]
 
 use heph_inbox::{
     self as inbox, MAX_CAP, Manager, Receiver, RecvError, SendError, SendValue, Sender, new,
