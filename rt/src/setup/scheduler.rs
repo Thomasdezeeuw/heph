@@ -55,7 +55,9 @@ pub trait Scheduler: fmt::Debug {
     /// The process was previously removed via [`Scheduler::next_process`] and
     /// now is added back to the scheduler as it's not finished running (i.e. it
     /// returned [`Poll::Pending`]).
-    fn add_back_process(&mut self, process: Self::RunnableProcess);
+    ///
+    /// The `stats` about the running of the process can be used for scheduling.
+    fn add_back_process(&mut self, process: Self::RunnableProcess, stats: RunStats);
 
     /// Mark a `process` as completed.
     ///
