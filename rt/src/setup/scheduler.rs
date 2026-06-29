@@ -21,6 +21,7 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::task::{self, Poll};
+use std::time::{Duration, Instant};
 use std::{fmt, thread};
 
 use crate::spawn::options::Priority;
@@ -142,5 +143,36 @@ impl fmt::Display for ProcessId {
 impl log::kv::ToValue for ProcessId {
     fn to_value(&self) -> log::kv::Value<'_> {
         self.0.to_value()
+    }
+}
+
+/// Statistics about the run of a process.
+#[derive(Copy, Clone, Debug)]
+#[must_use = "Must check the process's result"]
+pub struct RunStats {
+    start: Instant,
+    end: Instant,
+    elapsed: Duration,
+    result: Poll<()>,
+}
+
+impl RunStats {
+    /// When the processes started running.
+    pub fn start(&self) -> Instant {
+        self.start
+    }
+
+    /// When the processes finished running.
+    pub fn end(&self) -> Instant {
+        self.end
+    }
+
+    /// How long the process ran for.
+    pub fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    pub(crate) fn result(&self) -> Poll<()> {
+        self.result
     }
 }
