@@ -34,6 +34,8 @@ use crate::spawn::options::Priority;
 /// (those that are not ready to run) and 2) a ready queue of processes that are
 /// ready to run.
 ///
+/// The scheduler can optionally use the [`Schedule`] trait to allow for a user
+/// defined scheduling implementation.
 pub trait Scheduler: fmt::Debug {
     /// Process that is ready to run, see [`RunnableProcess`].
     type RunnableProcess: RunnableProcess;
@@ -107,6 +109,33 @@ pub trait Scheduler: fmt::Debug {
     fn has_process(&self) -> bool {
         self.has_ready_process() || self.processes_inactive() >= 1
     }
+}
+
+/// Scheduling implementation.
+///
+/// The [`Scheduler`] trait defines the scheduler itself, i.e. it's data
+/// structure and algorithms. This trait can be optionally used in those
+/// implementations to determine which process to run next, i.e. the ordering of
+/// processes that are ready to run.
+///
+/// The type itself holds the per process metadata needed for scheduling.
+pub trait Schedule {
+    /// Create new process metadata.
+    fn new(priority: Priority) -> Self;
+
+    /// Update the process data with the latest run information.
+    ///
+    /// This should be after the process is added back to the scheduler in
+    /// [`Scheduler::add_back_process`] so that the process metadata stays up to
+    /// date.
+    fn update(&mut self, stats: &RunStats);
+
+    /// Determine if the `lhs` or `rhs` should run first.
+    ///
+    /// This is essentially the same as [`Ord::cmp`].
+    ///
+    /// [`Ord::cmp`]: std::cmp::Ord::cmp
+    fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
 }
 
 /// Process id, or pid for short, is an identifier for a process in the
