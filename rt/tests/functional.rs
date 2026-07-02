@@ -20,12 +20,12 @@ mod from_message;
 mod future;
 #[path = "functional/pipe.rs"]
 mod pipe;
-#[path = "functional/process_id.rs"]
-mod process_id;
 #[path = "functional/restart_supervisor.rs"]
 mod restart_supervisor;
 #[path = "functional/runtime.rs"]
 mod runtime;
+#[path = "functional/scheduler/mod.rs"]
+mod scheduler;
 #[path = "functional/spawn.rs"]
 mod spawn;
 #[path = "functional/sync_actor.rs"]
