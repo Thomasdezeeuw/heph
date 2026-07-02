@@ -142,10 +142,10 @@ pub trait Schedule {
     fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
 }
 
-/// Basic [`Schedule`] implementation using the Completely Fair Scheduler (CFS)
-/// algorithm.
+/// Completely Fair Scheduler (CFS) algorithm.
 ///
-/// See <https://en.wikipedia.org/wiki/Completely_Fair_Scheduler> for more
+/// Implements [`Schedule`] so it can be used in different [`Scheduler`]s. See
+/// <https://en.wikipedia.org/wiki/Completely_Fair_Scheduler> for more
 /// information about CFS.
 #[derive(Debug)]
 pub struct Cfs {
