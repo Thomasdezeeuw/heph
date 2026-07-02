@@ -6,13 +6,14 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::scheduler::process::{self, ProcessId};
+    use crate::scheduler::process::{self};
+    use crate::setup::scheduler::ProcessId;
     use crate::shared;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
 
-    const PID1: ProcessId = ProcessId(1);
-    const PID2: ProcessId = ProcessId(2);
+    const PID1: ProcessId = ProcessId::new(1);
+    const PID2: ProcessId = ProcessId::new(2);
 
     pub(super) struct TestProcess;
 

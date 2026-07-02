@@ -11,6 +11,7 @@ use std::{fmt, iter, ptr, task, thread};
 
 use log::trace;
 
+use crate::setup::scheduler::ProcessId;
 use crate::spawn::options::Priority;
 
 #[allow(clippy::cast_possible_truncation)]
@@ -23,7 +24,6 @@ pub(crate) mod shared;
 mod tests;
 
 use cfs::Cfs;
-pub(crate) use process::ProcessId;
 
 type Process<S> = process::Process<S, dyn process::Run>;
 
@@ -190,14 +190,14 @@ impl<S: Schedule> Scheduler<S> {
 /// Create a pid from the `offset` in `Scheduler::inactive` and the `idx` into
 /// `Process:processes` (and `Processes:bitmap`).
 fn pid(offset: usize, idx: u16) -> ProcessId {
-    ProcessId(offset << GROUP_SHIFT | idx as usize)
+    ProcessId::new(offset << GROUP_SHIFT | idx as usize)
 }
 
 /// Reverse of [`pid`].
 #[allow(clippy::cast_possible_truncation)]
 fn offset_idx(pid: ProcessId) -> (usize, u16) {
-    let idx = (pid.0 & ((1 << GROUP_SHIFT) - 1)) as u16;
-    let offset = pid.0 >> GROUP_SHIFT;
+    let idx = (pid.data() & ((1 << GROUP_SHIFT) - 1)) as u16;
+    let offset = pid.data() >> GROUP_SHIFT;
     (offset, idx)
 }
 

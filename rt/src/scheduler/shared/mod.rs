@@ -4,7 +4,8 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::scheduler::{Cfs, ProcessId, process};
+use crate::scheduler::{Cfs, process};
+use crate::setup::scheduler::ProcessId;
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -132,7 +133,7 @@ impl Scheduler {
         priority: Priority,
         process: Pin<Box<dyn process::Run + Send + Sync>>,
     ) -> ProcessId {
-        let mut process = Box::pin(Process::new(ProcessId(0), priority, process));
+        let mut process = Box::pin(Process::new(ProcessId::new(0), priority, process));
         Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);

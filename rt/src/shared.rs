@@ -14,8 +14,9 @@ use heph::{ActorFutureBuilder, NewActor};
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
-use crate::scheduler::process::{FutureProcess, ProcessId};
+use crate::scheduler::process::FutureProcess;
 use crate::scheduler::shared::{Process, Scheduler};
+use crate::setup::scheduler::ProcessId;
 use crate::setup::timers::{SharedTimers, TimerToken};
 #[cfg(test)]
 use crate::spawn::options::Priority;

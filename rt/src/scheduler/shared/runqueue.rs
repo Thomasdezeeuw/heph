@@ -118,7 +118,8 @@ mod tests {
     use std::task::{self, Poll};
     use std::time::Duration;
 
-    use crate::scheduler::{ProcessId, process};
+    use crate::scheduler::process;
+    use crate::setup::scheduler::ProcessId;
     use crate::spawn::options::Priority;
 
     use super::{Node, Process, RunQueue};
@@ -145,7 +146,7 @@ mod tests {
 
     fn add_process(run_queue: &RunQueue, fair_runtime: Duration) -> ProcessId {
         let mut process = Box::pin(Process::new(
-            ProcessId(0),
+            ProcessId::new(0),
             Priority::NORMAL,
             Box::pin(TestProcess),
         ));

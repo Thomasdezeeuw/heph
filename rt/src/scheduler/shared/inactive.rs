@@ -4,8 +4,8 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
 
-use crate::scheduler::ProcessId;
 use crate::scheduler::shared::{Process, RunQueue};
+use crate::setup::scheduler::ProcessId;
 
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 2;
@@ -20,7 +20,7 @@ const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
 /// Returns `false` if `pid`'s `SKIP_BITS` aren't valid.
 const fn ok_pid(pid: ProcessId) -> bool {
-    pid.0 & SKIP_MASK == 0
+    pid.data() & SKIP_MASK == 0
 }
 
 /// Inactive processes.
@@ -91,7 +91,8 @@ impl Inactive {
     pub(crate) fn add(&self, process: Pin<Box<Process>>, run_queue: &RunQueue) {
         let pid = process.id();
         debug_assert!(ok_pid(pid));
-        let changed = self.root.add(process, pid.0 >> SKIP_BITS, 0, run_queue);
+        let w_pid = pid.data() >> SKIP_BITS;
+        let changed = self.root.add(process, w_pid, 0, run_queue);
         self.update_length(changed);
     }
 
@@ -100,7 +101,8 @@ impl Inactive {
     /// [`Inactive::add`] will return it once added back.
     pub(crate) fn mark_ready(&self, pid: ProcessId, run_queue: &RunQueue) {
         debug_assert!(ok_pid(pid));
-        let changed = self.root.mark_ready(pid, pid.0 >> SKIP_BITS, 0, run_queue);
+        let w_pid = pid.data() >> SKIP_BITS;
+        let changed = self.root.mark_ready(pid, w_pid, 0, run_queue);
         self.update_length(changed);
     }
 
@@ -111,7 +113,7 @@ impl Inactive {
         let ready_marker = ready_to_run(pid);
 
         let mut node = &self.root;
-        let mut w_pid = pid.0 >> SKIP_BITS;
+        let mut w_pid = pid.data() >> SKIP_BITS;
         // SAFETY: this needs to sync with all possible points that can change
         // this value; all need to use `Acquire`/`Release` (or `AcqRel`).
         let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
@@ -573,7 +575,7 @@ impl fmt::Debug for Branch {
 #[allow(clippy::manual_assert_eq)]
 fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
     debug_assert!(pid1 != pid2);
-    ((pid1.0 ^ pid2.0) >> SKIP_BITS).trailing_zeros() as usize / LEVEL_SHIFT
+    ((pid1.data() ^ pid2.data()) >> SKIP_BITS).trailing_zeros() as usize / LEVEL_SHIFT
 }
 
 /// Converts `process` into a tagged pointer.
@@ -592,7 +594,7 @@ fn tag_branch(branch: Pin<Box<Branch>>) -> TaggedPointer {
 
 /// Create a mark ready-to-run `Pointer`.
 const fn ready_to_run(pid: ProcessId) -> TaggedPointer {
-    (pid.0 | READY_TO_RUN) as *mut ()
+    (pid.data() | READY_TO_RUN) as *mut ()
 }
 
 /// Convert a tagged pointer into a pointer to a process.
@@ -646,7 +648,7 @@ unsafe fn as_pid(ptr: TaggedPointer) -> ProcessId {
         Pin::new(unsafe { &*(as_ptr(ptr).cast::<Process>()) }).id()
     } else {
         debug_assert!(is_ready_marker(ptr));
-        ProcessId(as_ptr(ptr) as usize)
+        ProcessId::new(as_ptr(ptr) as usize)
     }
 }
 
@@ -657,7 +659,7 @@ fn as_ptr(ptr: TaggedPointer) -> *mut () {
 
 /// Returns the working pid for `ptr` at `depth`.
 const fn wpid_for(pid: ProcessId, depth: usize) -> usize {
-    pid.0 >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
+    pid.data() >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
 }
 
 impl Drop for Branch {
@@ -698,8 +700,9 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{self, Poll};
 
+    use crate::scheduler::process;
     use crate::scheduler::shared::RunQueue;
-    use crate::scheduler::{ProcessId, process};
+    use crate::setup::scheduler::ProcessId;
     use crate::spawn::options::Priority;
 
     use super::{
@@ -736,7 +739,7 @@ mod tests {
 
     fn test_process() -> Pin<Box<Process>> {
         let mut process = Box::pin(Process::new(
-            ProcessId(0),
+            ProcessId::new(0),
             Priority::default(),
             Box::pin(TestProcess),
         ));
@@ -779,8 +782,8 @@ mod tests {
             (0b0000, 0b1001, 0),
         ];
         for (pid1, pid2, expected) in tests.iter().copied() {
-            let pid1 = ProcessId(pid1);
-            let pid2 = ProcessId(pid2);
+            let pid1 = ProcessId::new(pid1);
+            let pid2 = ProcessId::new(pid2);
             let got = diff_branch_depth(pid1, pid2);
             assert_eq!(got, expected, "pid1: {pid1}, pid2: {pid2}");
         }
@@ -810,7 +813,7 @@ mod tests {
 
     #[test]
     fn ready_marker_tagging() {
-        let pid = ProcessId(500);
+        let pid = ProcessId::new(500);
         let tagged_pid = ready_to_run(pid);
         assert!(!is_process(tagged_pid));
         assert!(!is_branch(tagged_pid));
@@ -842,7 +845,11 @@ mod tests {
     fn dropping_tagged_process() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let mut process = Box::pin(Process::new(ProcessId(0), Priority::default(), process));
+        let mut process = Box::pin(Process::new(
+            ProcessId::new(0),
+            Priority::default(),
+            process,
+        ));
         process.set_id();
         let ptr = tag_process(process);
 
@@ -855,7 +862,11 @@ mod tests {
     fn dropping_tagged_branch() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let mut process = Box::pin(Process::new(ProcessId(0), Priority::default(), process));
+        let mut process = Box::pin(Process::new(
+            ProcessId::new(0),
+            Priority::default(),
+            process,
+        ));
         process.set_id();
         let process_ptr = tag_process(process);
 
@@ -870,7 +881,7 @@ mod tests {
 
     #[test]
     fn dropping_tagged_pid() {
-        unsafe { drop_tagged_pointer(ready_to_run(ProcessId(500))) };
+        unsafe { drop_tagged_pointer(ready_to_run(ProcessId::new(500))) };
     }
 
     #[test]
@@ -945,7 +956,7 @@ mod tests {
                 panic!(
                     "failed to remove {}th process: pid={:064b} ({}), tree: {:#?}",
                     index + 1,
-                    pid.0,
+                    pid.data(),
                     pid,
                     tree
                 );

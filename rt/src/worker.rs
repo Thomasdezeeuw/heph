@@ -315,7 +315,7 @@ where
                     self.internals.trace_log.borrow_mut().as_mut(),
                     timing,
                     "Running thread-local process",
-                    &[("id", &pid.0), ("name", &name)],
+                    &[("id", &pid.data()), ("name", &name)],
                 );
                 Some(result.elapsed)
             }
@@ -351,7 +351,7 @@ where
                     self.internals.trace_log.borrow_mut().as_mut(),
                     timing,
                     "Running thread-safe process",
-                    &[("id", &pid.0), ("name", &name)],
+                    &[("id", &pid.data()), ("name", &name)],
                 );
                 Some(result.elapsed)
             }

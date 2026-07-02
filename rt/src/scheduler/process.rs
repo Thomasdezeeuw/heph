@@ -14,32 +14,7 @@ use log::trace;
 
 use crate::panic_message;
 use crate::scheduler::{Priority, Schedule};
-
-/// Process id, or pid for short, is an identifier for a process in the runtime.
-///
-/// This can only be created by one of the schedulers and should be seen as an
-/// opaque type for the rest of the crate.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[repr(transparent)]
-pub(crate) struct ProcessId(pub(crate) usize);
-
-impl fmt::Debug for ProcessId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl fmt::Display for ProcessId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl log::kv::ToValue for ProcessId {
-    fn to_value(&self) -> log::kv::Value<'_> {
-        self.0.to_value()
-    }
-}
+use crate::setup::scheduler::ProcessId;
 
 /// A runnable process.
 pub(crate) trait Run {
@@ -126,7 +101,7 @@ impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
 
     // TODO: remove
     pub(crate) fn set_id(self: &mut Pin<Box<Self>>) {
-        let pid = ProcessId(ptr::from_ref(&**self).addr());
+        let pid = ProcessId::new(ptr::from_ref(&**self).addr());
         unsafe { self.as_mut().get_unchecked_mut().id = pid };
     }
 
