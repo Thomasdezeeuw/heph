@@ -41,7 +41,8 @@ pub trait Scheduler: fmt::Debug {
     /// Process that is ready to run.
     type Process: SchedulerProcess;
 
-    /// Returns the next process that is ready to run, if any.
+    /// Returns the next process that is ready to run, if any, as well as waker
+    /// for it.
     ///
     /// After a process is removed it's run without holding any references to
     /// the scheduler itself, this way it can be used (mutably) to add new
@@ -51,7 +52,7 @@ pub trait Scheduler: fmt::Debug {
     /// or [`Scheduler::complete_process`] is called, to ensure that the
     /// scheduler can keep managing the process or clean up any resources
     /// related to it.
-    fn next_process(&mut self) -> Option<Self::Process>;
+    fn next_process(&mut self) -> Option<(Self::Process, task::Waker)>;
 
     /// Add back a `process` that was run.
     ///
