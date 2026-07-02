@@ -13,9 +13,6 @@ use log::trace;
 use crate::setup::scheduler::{self, Cfs, ProcessId, RunStats, Schedule};
 use crate::spawn::options::Priority;
 
-#[allow(clippy::cast_possible_truncation)]
-const SYSTEM_ACTORS: u16 = crate::worker::SYSTEM_ACTORS as u16;
-
 pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
@@ -40,53 +37,6 @@ impl<S: Schedule> Scheduler<S> {
             ready: BinaryHeap::with_capacity(8),
             inactive,
         }
-    }
-
-    /// Returns true if the scheduler has any processes that are ready to run.
-    pub(crate) fn has_ready_process(&self) -> bool {
-        !self.ready.is_empty()
-    }
-
-    /// Returns true if the scheduler has any user processes (in any state),
-    /// false otherwise. This ignore system processes.
-    pub(crate) fn has_user_process(&self) -> bool {
-        self.has_ready_process() || self.inactive.iter().any(|p| p.length > SYSTEM_ACTORS)
-    }
-
-    /// Returns the number of processes ready to run.
-    pub(crate) fn ready(&self) -> usize {
-        self.ready.len()
-    }
-
-    /// Returns the number of inactive processes.
-    pub(crate) fn inactive(&self) -> usize {
-        self.inactive.iter().map(|p| usize::from(p.length)).sum()
-    }
-
-    /// Mark all processes that are awoken as ready.
-    pub(crate) fn ready_processes(&mut self) -> usize {
-        let mut amount = 0;
-        for inactive in &mut self.inactive {
-            for index in inactive.bitmap.set_iter() {
-                if let Some(process) = inactive.processes[index as usize].mark_ready() {
-                    self.ready.push(process);
-                    amount += 1;
-                }
-            }
-        }
-        amount
-    }
-
-    /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process(
-        &mut self,
-        priority: Priority,
-        process: Pin<Box<dyn scheduler::Process>>,
-    ) -> ProcessId {
-        let pid = self.reserve_slot();
-        let process = Box::pin(Process::<S>::new(pid, priority, process));
-        self.ready.push(process);
-        pid
     }
 
     /// Reserve a slot for a process, returning the process id.
@@ -122,33 +72,28 @@ impl<S: Schedule> Scheduler<S> {
 
         pid(self.inactive.len() - 1, 0)
     }
+}
 
-    /// Returns the next ready process.
-    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<Process<S>>>> {
-        self.ready.pop()
-    }
+impl<S: Schedule + fmt::Debug> scheduler::Scheduler for Scheduler<S> {
+    type Process = Pin<Box<Process<S>>>;
 
-    /// Create a new waker for `process`.
-    pub(crate) fn waker_for_process(&self, process: Pin<&Process<S>>) -> task::Waker {
+    fn next_process(&mut self) -> Option<(Self::Process, task::Waker)> {
+        let process = self.ready.pop()?;
         let (offset, idx) = offset_idx(process.id());
-        self.inactive[offset].bitmap.new_waker(idx)
+        let waker = self.inactive[offset].bitmap.new_waker(idx);
+        Some((process, waker))
     }
 
-    /// Add back a `process` that was previously removed via
-    /// [`Scheduler::next_process`].
-    pub(crate) fn add_back_process(&mut self, mut process: Pin<Box<Process<S>>>, stats: RunStats) {
-        process.as_mut().update(&stats);
+    fn add_back_process(&mut self, mut process: Self::Process, stats: RunStats) {
         let pid = process.id();
         trace!(pid; "adding back process");
+
+        process.as_mut().update(&stats);
         let (offset, idx) = offset_idx(process.id());
         self.inactive[offset].processes[idx as usize].add_back(process);
     }
 
-    /// Mark `process` as complete, removing it from the scheduler.
-    ///
-    /// Returns a possible panic (as error) from dropping the process. The
-    /// scheduler is not affected by this.
-    pub(crate) fn complete(&mut self, process: Pin<Box<Process<S>>>) -> thread::Result<()> {
+    fn complete_process(&mut self, process: Self::Process) -> thread::Result<()> {
         let pid = process.id();
         trace!(pid; "removing process");
 
@@ -162,6 +107,48 @@ impl<S: Schedule> Scheduler<S> {
 
         // Don't want to panic when dropping the process.
         catch_unwind(AssertUnwindSafe(move || drop(process)))
+    }
+
+    fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
+    where
+        P: scheduler::Process + 'static,
+    {
+        let pid = self.reserve_slot();
+        // FIXME: are we double boxing when called with `P = Box<dyn Process>`
+        // here?
+        let process: Pin<Box<dyn scheduler::Process>> = Box::pin(process);
+        let process = Box::pin(Process::<S>::new(pid, priority, process));
+        self.ready.push(process);
+        pid
+    }
+
+    fn process_wakeups(&mut self) -> usize {
+        let mut amount = 0;
+        for inactive in &mut self.inactive {
+            for index in inactive.bitmap.set_iter() {
+                if let Some(process) = inactive.processes[index as usize].mark_ready() {
+                    self.ready.push(process);
+                    amount += 1;
+                }
+            }
+        }
+        amount
+    }
+
+    fn processes_ready(&self) -> usize {
+        self.ready.len()
+    }
+
+    fn has_ready_process(&self) -> bool {
+        !self.ready.is_empty()
+    }
+
+    fn processes_inactive(&self) -> usize {
+        self.inactive.iter().map(|p| usize::from(p.length)).sum()
+    }
+
+    fn has_process(&self) -> bool {
+        self.has_ready_process() || self.inactive.iter().any(|p| p.length >= 1)
     }
 }
 

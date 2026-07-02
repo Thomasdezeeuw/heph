@@ -15,7 +15,7 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
 use crate::scheduler::Scheduler;
-use crate::setup::scheduler::{Process, ProcessId};
+use crate::setup::scheduler::{Process, ProcessId, Scheduler as _};
 use crate::setup::timers::{TimerToken, Timers};
 use crate::spawn::options::Priority;
 #[cfg(any(test, feature = "test"))]
@@ -270,9 +270,7 @@ where
     }
 
     fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId {
-        self.scheduler
-            .borrow_mut()
-            .add_new_process(priority, process)
+        self.scheduler.borrow_mut().add_process(priority, process)
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
@@ -303,8 +301,8 @@ where
         let scheduler = self.scheduler.borrow();
         let mut timers = self.timers.borrow_mut();
         LocalMetrics {
-            scheduler_ready: scheduler.ready(),
-            scheduler_inactive: scheduler.inactive(),
+            scheduler_ready: scheduler.processes_ready(),
+            scheduler_inactive: scheduler.processes_inactive(),
             timers: timers.len(),
             timers_next: timers.until_next_deadline(),
             trace_counter: self

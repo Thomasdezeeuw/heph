@@ -27,7 +27,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::setup::scheduler::SchedulerProcess;
+use crate::setup::scheduler::{Scheduler, SchedulerProcess};
 use crate::setup::timers::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
@@ -35,7 +35,7 @@ use crate::util::next;
 use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
-pub(crate) const SYSTEM_ACTORS: usize = 2;
+const SYSTEM_ACTORS: usize = 2;
 
 /// Configuratiob of a [`Worker`].
 pub(crate) struct Conf<FT> {
@@ -286,21 +286,21 @@ where
     fn run_local_process(&mut self) -> Option<Duration> {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
-            Some(mut process) => {
+            Some((mut process, waker)) => {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
                 log::debug!(worker_id = self.internals.id, pid, name; "running local process");
-                let waker = self
-                    .internals
-                    .scheduler
-                    .borrow()
-                    .waker_for_process(process.as_ref());
                 let mut ctx = task::Context::from_waker(&waker);
                 let stats = process.as_mut().run(&mut ctx);
                 match stats.result() {
                     task::Poll::Ready(()) => {
-                        if let Err(err) = self.internals.scheduler.borrow_mut().complete(process) {
+                        if let Err(err) = self
+                            .internals
+                            .scheduler
+                            .borrow_mut()
+                            .complete_process(process)
+                        {
                             let msg = panic_message(&*err);
                             log::warn!("panicked while dropping process: {msg}");
                         }
@@ -363,7 +363,18 @@ where
     /// Returns `true` if there are processes in either the local or shared
     /// schedulers.
     fn has_user_process(&self) -> bool {
-        self.internals.scheduler.borrow().has_user_process() || self.internals.shared.has_process()
+        let local_scheduler = self.internals.scheduler.borrow();
+        if local_scheduler.has_process() {
+            let mut processes = local_scheduler.processes_ready();
+            if processes > SYSTEM_ACTORS {
+                return true;
+            }
+            processes += local_scheduler.processes_inactive();
+            if processes > SYSTEM_ACTORS {
+                return true;
+            }
+        }
+        self.internals.shared.has_process()
     }
 
     /// Schedule processes.
@@ -401,7 +412,7 @@ where
         let timing = trace::start(&*self.internals.trace_log.borrow());
         log::trace!(worker_id = self.internals.id; "scheduling thread-local processes");
 
-        let amount = self.internals.scheduler.borrow_mut().ready_processes();
+        let amount = self.internals.scheduler.borrow_mut().process_wakeups();
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
