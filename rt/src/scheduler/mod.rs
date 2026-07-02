@@ -11,7 +11,7 @@ use std::{fmt, iter, ptr, task, thread};
 
 use log::trace;
 
-use crate::setup::scheduler::ProcessId;
+use crate::setup::scheduler::{self, ProcessId};
 use crate::spawn::options::Priority;
 
 #[allow(clippy::cast_possible_truncation)]
@@ -25,7 +25,7 @@ mod tests;
 
 use cfs::Cfs;
 
-type Process<S> = process::Process<S, dyn process::Run>;
+type Process<S> = process::Process<S, dyn scheduler::Process>;
 
 /// Scheduling implementation.
 ///
@@ -104,7 +104,7 @@ impl<S: Schedule> Scheduler<S> {
     pub(crate) fn add_new_process(
         &mut self,
         priority: Priority,
-        process: Pin<Box<dyn process::Run>>,
+        process: Pin<Box<dyn scheduler::Process>>,
     ) -> ProcessId {
         let pid = self.reserve_slot();
         let process = Box::pin(Process::<S>::new(pid, priority, process));

@@ -12,9 +12,9 @@ use heph::ActorFutureBuilder;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
-use crate::scheduler::process::{self, FutureProcess, RunStats};
+use crate::scheduler::process::{self, RunStats};
 use crate::scheduler::{Cfs, Process, Scheduler};
-use crate::setup::scheduler::ProcessId;
+use crate::setup::scheduler::{self, FutureProcess, ProcessId};
 use crate::spawn::options::Priority;
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::worker::SYSTEM_ACTORS;
@@ -23,19 +23,23 @@ use crate::{Access, ThreadLocal};
 #[test]
 fn size_assertions() {
     assert_size::<Priority>(1);
-    assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(40);
+    assert_size::<process::Process<Cfs, Box<dyn scheduler::Process>>>(40);
     assert_size::<Process<Cfs>>(48);
 }
 
 #[derive(Debug)]
 struct NopTestProcess;
 
-impl process::Run for NopTestProcess {
+impl scheduler::Process for NopTestProcess {
     fn name(&self) -> &'static str {
         "NopTestProcess"
     }
+}
 
-    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+impl Future for NopTestProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
         unimplemented!();
     }
 }
@@ -77,12 +81,16 @@ fn process_data_equality() {
 #[derive(Debug)]
 struct SleepyProcess(Duration);
 
-impl process::Run for SleepyProcess {
+impl scheduler::Process for SleepyProcess {
     fn name(&self) -> &'static str {
         "SleepyProcess"
     }
+}
 
-    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+impl Future for SleepyProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
         sleep(self.0);
         Poll::Pending
     }
@@ -112,17 +120,17 @@ fn process_data_runtime_increase() {
 #[test]
 fn future_process_assert_future_unmoved() {
     let process = FutureProcess(AssertUnmoved::new(pending()));
-    let mut process: Pin<Box<dyn process::Run>> = Box::pin(process);
+    let mut process: Pin<Box<dyn scheduler::Process>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
 }
 

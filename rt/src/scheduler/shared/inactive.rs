@@ -700,9 +700,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{self, Poll};
 
-    use crate::scheduler::process;
     use crate::scheduler::shared::RunQueue;
-    use crate::setup::scheduler::ProcessId;
+    use crate::setup::scheduler::{self, ProcessId};
     use crate::spawn::options::Priority;
 
     use super::{
@@ -727,12 +726,16 @@ mod tests {
 
     struct TestProcess;
 
-    impl process::Run for TestProcess {
+    impl scheduler::Process for TestProcess {
         fn name(&self) -> &'static str {
             "TestProcess"
         }
+    }
 
-        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+    impl Future for TestProcess {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
             unimplemented!();
         }
     }
@@ -831,12 +834,16 @@ mod tests {
         }
     }
 
-    impl process::Run for DropTest {
+    impl scheduler::Process for DropTest {
         fn name(&self) -> &'static str {
             "DropTest"
         }
+    }
 
-        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+    impl Future for DropTest {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
             unimplemented!();
         }
     }

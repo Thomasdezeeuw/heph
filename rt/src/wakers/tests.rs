@@ -6,8 +6,7 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::scheduler::process::{self};
-    use crate::setup::scheduler::ProcessId;
+    use crate::setup::scheduler::{Process, ProcessId};
     use crate::shared;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
@@ -17,13 +16,17 @@ mod shared {
 
     pub(super) struct TestProcess;
 
-    impl process::Run for TestProcess {
+    impl Future for TestProcess {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+            unimplemented!();
+        }
+    }
+
+    impl Process for TestProcess {
         fn name(&self) -> &'static str {
             "TestProcess"
-        }
-
-        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-            unimplemented!();
         }
     }
 
