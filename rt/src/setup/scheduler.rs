@@ -190,6 +190,24 @@ pub trait Process: Future<Output = ()> {
     fn name(&self) -> &'static str;
 }
 
+impl<T> Process for Pin<T>
+where
+    T: std::ops::DerefMut<Target: Process>, // NOTE: DerefMut is required for Future impl.
+{
+    fn name(&self) -> &'static str {
+        (&**self).name()
+    }
+}
+
+impl<T> Process for Box<T>
+where
+    T: Process + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+{
+    fn name(&self) -> &'static str {
+        (&**self).name()
+    }
+}
+
 /// Wrapper around a [`Future`] to implement [`Process`].
 ///
 /// NOTE: this type only exists because we can add a default implementation for
@@ -265,6 +283,24 @@ pub trait SchedulerProcess: Process {
             elapsed,
             result,
         }
+    }
+}
+
+impl<T> SchedulerProcess for Pin<T>
+where
+    T: std::ops::DerefMut<Target: SchedulerProcess>, // NOTE: DerefMut is required for Future impl.
+{
+    fn id(&self) -> ProcessId {
+        (&**self).id()
+    }
+}
+
+impl<T> SchedulerProcess for Box<T>
+where
+    T: SchedulerProcess + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+{
+    fn id(&self) -> ProcessId {
+        (&**self).id()
     }
 }
 
