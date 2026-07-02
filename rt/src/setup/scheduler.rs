@@ -13,7 +13,7 @@
 //!    order processes.
 //!  * [`Process`] represents a single process which can be added to the
 //!    `Scheduler`.
-//!  * [`RunnableProcess`] represents a process within the context of a
+//!  * [`SchedulerProcess`] represents a process within the context of a
 //!    `Scheduler` that can be run.
 //!
 //! See the documentation on the trait themselves for more information.
@@ -24,6 +24,7 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, thread};
 
+use crate::panic_message;
 use crate::spawn::options::Priority;
 
 /// Scheduler implementation.
@@ -37,8 +38,8 @@ use crate::spawn::options::Priority;
 /// The scheduler can optionally use the [`Schedule`] trait to allow for a user
 /// defined scheduling implementation.
 pub trait Scheduler: fmt::Debug {
-    /// Process that is ready to run, see [`RunnableProcess`].
-    type RunnableProcess: RunnableProcess;
+    /// Process that is ready to run.
+    type Process: SchedulerProcess;
 
     /// Returns the next process that is ready to run, if any.
     ///
@@ -50,7 +51,7 @@ pub trait Scheduler: fmt::Debug {
     /// or [`Scheduler::complete_process`] is called, to ensure that the
     /// scheduler can keep managing the process or clean up any resources
     /// related to it.
-    fn next_process(&mut self) -> Option<Self::RunnableProcess>;
+    fn next_process(&mut self) -> Option<Self::Process>;
 
     /// Add back a `process` that was run.
     ///
@@ -59,7 +60,7 @@ pub trait Scheduler: fmt::Debug {
     /// returned [`Poll::Pending`]).
     ///
     /// The `stats` about the running of the process can be used for scheduling.
-    fn add_back_process(&mut self, process: Self::RunnableProcess, stats: RunStats);
+    fn add_back_process(&mut self, process: Self::Process, stats: RunStats);
 
     /// Mark a `process` as completed.
     ///
@@ -76,7 +77,7 @@ pub trait Scheduler: fmt::Debug {
     ///
     /// The default implemementation simply drops the process (catching any
     /// panics).
-    fn complete_process(&mut self, process: Self::RunnableProcess) -> thread::Result<()> {
+    fn complete_process(&mut self, process: Self::Process) -> thread::Result<()> {
         // Don't want to panic when dropping the process.
         catch_unwind(AssertUnwindSafe(|| drop(process)))
     }
@@ -145,6 +146,44 @@ pub trait Schedule {
 pub trait Process: Future<Output = ()> {
     /// Return the name of this process.
     fn name(&self) -> &'static str;
+}
+
+/// Process that is part of a [`Scheduler`].
+pub trait SchedulerProcess: Process {
+    /// Id of the process.
+    fn id(&self) -> ProcessId;
+
+    /// Run the process until it can't make any more progress without blocking.
+    ///
+    /// # Notes
+    ///
+    /// This calls the [`Future::poll`] function underneath, which means all
+    /// limitations that apply to that function also apply here (such as not
+    /// calling this after it returns [`Poll::Ready`]).
+    fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> RunStats {
+        let pid = self.id();
+        let name = self.name();
+        log::trace!(pid, name; "running process");
+        let start = Instant::now();
+        let result = match catch_unwind(AssertUnwindSafe(|| self.as_mut().poll(ctx))) {
+            Ok(result) => result,
+            Err(panic) => {
+                let msg = panic_message(&*panic);
+                let name = self.name();
+                log::error!("process '{name}' panicked at '{msg}'");
+                Poll::Ready(())
+            }
+        };
+        let end = Instant::now();
+        let elapsed = end - start;
+        log::trace!(pid, name, elapsed:?, result:?; "finished running process");
+        RunStats {
+            start,
+            end,
+            elapsed,
+            result,
+        }
+    }
 }
 
 /// Process id, or pid for short, is an identifier for a process in the
