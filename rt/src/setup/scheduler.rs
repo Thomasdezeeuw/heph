@@ -190,6 +190,35 @@ pub trait Process: Future<Output = ()> {
     fn name(&self) -> &'static str;
 }
 
+/// Wrapper around a [`Future`] to implement [`Process`].
+///
+/// NOTE: this type only exists because we can add a default implementation for
+/// Fut where Fut: Future, and have a separate one for ActorFuture. Once that
+/// kind of specialisation is possible this type can be remove.
+pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
+
+impl<Fut> Process for FutureProcess<Fut>
+where
+    Fut: Future<Output = ()>,
+{
+    fn name(&self) -> &'static str {
+        // TODO: improve this using `heph::actor::name::<Fut>()`.
+        "FutureProcess"
+    }
+}
+
+impl<Fut> Future for FutureProcess<Fut>
+where
+    Fut: Future<Output = ()>,
+{
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the future.
+        unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.0) }.poll(ctx)
+    }
+}
+
 impl<S, NA> Process for ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
