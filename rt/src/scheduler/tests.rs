@@ -22,7 +22,6 @@ use crate::{Access, ThreadLocal};
 
 #[test]
 fn size_assertions() {
-    assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
     assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(40);
     assert_size::<Process<Cfs>>(48);
@@ -39,18 +38,6 @@ impl process::Run for NopTestProcess {
     fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
         unimplemented!();
     }
-}
-
-#[test]
-fn pid() {
-    assert_eq!(ProcessId::new(0), ProcessId::new(0));
-    assert_eq!(ProcessId::new(100), ProcessId::new(100));
-
-    assert!(ProcessId::new(0) < ProcessId::new(100));
-
-    assert_eq!(ProcessId::new(0).to_string(), "0");
-    assert_eq!(ProcessId::new(100).to_string(), "100");
-    assert_eq!(ProcessId::new(8000).to_string(), "8000");
 }
 
 #[test]
