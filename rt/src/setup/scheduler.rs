@@ -125,9 +125,9 @@ pub trait Schedule {
 
     /// Update the process data with the latest run information.
     ///
-    /// This should be after the process is added back to the scheduler in
-    /// [`Scheduler::add_back_process`] so that the process metadata stays up to
-    /// date.
+    /// This should called be after the process is added back to the scheduler
+    /// in [`Scheduler::add_back_process`] so that the process metadata stays up
+    /// to date.
     fn update(&mut self, stats: &RunStats);
 
     /// Determine if the `lhs` or `rhs` should run first.
