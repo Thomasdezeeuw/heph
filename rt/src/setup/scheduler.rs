@@ -192,7 +192,7 @@ pub trait SchedulerProcess: Process {
 ///
 /// This can only be created by one of the schedulers and should be seen as an
 /// opaque type otherwise.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ProcessId(usize);
 
 impl ProcessId {
