@@ -88,7 +88,7 @@ pub trait Scheduler: fmt::Debug {
     /// Add a new process to the scheduler.
     fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
     where
-        P: Process;
+        P: Process + 'static;
 
     /// Mark all processes that are awoken as ready.
     ///
