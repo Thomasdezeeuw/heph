@@ -24,6 +24,8 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, thread};
 
+use heph::{ActorFuture, NewActor, Supervisor};
+
 use crate::panic_message;
 use crate::spawn::options::Priority;
 
@@ -186,6 +188,17 @@ impl Cfs {
 pub trait Process: Future<Output = ()> {
     /// Return the name of this process.
     fn name(&self) -> &'static str;
+}
+
+impl<S, NA> Process for ActorFuture<S, NA>
+where
+    S: Supervisor<NA>,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
+{
+    fn name(&self) -> &'static str {
+        NA::name()
+    }
 }
 
 /// Process that is part of a [`Scheduler`].
