@@ -197,12 +197,12 @@ pub struct ProcessId(usize);
 
 impl ProcessId {
     /// Create a new process id.
-    pub const fn new(id: usize) -> ProcessId {
-        ProcessId(id)
+    pub const fn new(data: usize) -> ProcessId {
+        ProcessId(data)
     }
 
-    /// Returns the id passed to [`ProcessId::new`].
-    pub const fn id(self) -> usize {
+    /// Returns the data passed to [`ProcessId::new`].
+    pub const fn data(self) -> usize {
         self.0
     }
 }
