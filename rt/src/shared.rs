@@ -15,7 +15,7 @@ use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
 use crate::scheduler::shared::{Process, Scheduler};
-use crate::setup::scheduler::{FutureProcess, ProcessId};
+use crate::setup::scheduler::{FutureProcess, ProcessId, RunStats};
 use crate::setup::timers::{SharedTimers, TimerToken};
 #[cfg(test)]
 use crate::spawn::options::Priority;
@@ -241,8 +241,8 @@ impl RuntimeInternals {
     }
 
     /// See [`Scheduler::add_back_process`].
-    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
-        self.scheduler.add_back_process(process);
+    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>, stats: RunStats) {
+        self.scheduler.add_back_process(process, stats);
     }
 
     /// See [`Scheduler::complete`].

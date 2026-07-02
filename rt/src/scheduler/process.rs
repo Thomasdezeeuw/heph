@@ -3,12 +3,9 @@
 use std::cmp::Ordering;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::time::{Duration, Instant};
 use std::{fmt, ptr};
 
-use log::trace;
-
-use crate::scheduler::{Priority, Schedule};
+use crate::scheduler::{Priority, RunStats, Schedule};
 use crate::setup::scheduler::ProcessId;
 
 /// Process container.
@@ -39,39 +36,40 @@ impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> Process<S, P> {
         }
     }
 
+    pub(crate) fn update(self: Pin<&mut Self>, stats: &RunStats) {
+        unsafe { self.get_unchecked_mut().scheduler_data.update(stats) };
+    }
+
     // TODO: remove
     pub(crate) fn set_id(self: &mut Pin<Box<Self>>) {
         let pid = ProcessId::new(ptr::from_ref(&**self).addr());
         unsafe { self.as_mut().get_unchecked_mut().id = pid };
     }
+}
 
-    /// Run the process.
-    ///
-    /// Returns the completion state of the process.
-    pub(crate) fn run(&mut self, ctx: &mut task::Context<'_>) -> RunStats {
-        let pid = self.id();
-        let name = self.process.name();
-        trace!(pid, name; "running process");
-
-        let start = Instant::now();
-        let result = self.process.as_mut().poll(ctx);
-        let end = Instant::now();
-        let elapsed = end - start;
-        self.scheduler_data.update(start, end, elapsed);
-
-        trace!(pid, name, elapsed:?, result:?; "finished running process");
-        RunStats { elapsed, result }
+impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> crate::setup::scheduler::Process
+    for Process<S, P>
+{
+    fn name(&self) -> &'static str {
+        self.process.name()
     }
 }
 
-/// Statistics about the run of a process.
-#[derive(Copy, Clone, Debug)]
-#[must_use = "Must check the process's result"]
-pub(crate) struct RunStats {
-    /// The duration for which the process ran.
-    pub(crate) elapsed: Duration,
-    /// The result of the process run.
-    pub(crate) result: Poll<()>,
+impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized>
+    crate::setup::scheduler::SchedulerProcess for Process<S, P>
+{
+    fn id(&self) -> ProcessId {
+        self.id
+    }
+}
+
+impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> Future for Process<S, P> {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
+        // SAFETY: not moving the future.
+        unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.process) }.poll(ctx)
+    }
 }
 
 impl<S, P: ?Sized> Process<S, P> {

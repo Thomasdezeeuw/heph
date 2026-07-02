@@ -5,7 +5,7 @@ use std::pin::Pin;
 use log::trace;
 
 use crate::scheduler::{Cfs, process};
-use crate::setup::scheduler::{self, ProcessId};
+use crate::setup::scheduler::{self, ProcessId, RunStats};
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -163,7 +163,8 @@ impl Scheduler {
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::remove`] and add it to the inactive list.
-    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
+    pub(crate) fn add_back_process(&self, mut process: Pin<Box<Process>>, stats: RunStats) {
+        process.as_mut().update(&stats);
         let pid = process.id();
         trace!(pid; "adding back process");
         self.inactive.add(process, &self.ready);

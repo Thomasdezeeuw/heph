@@ -6,45 +6,22 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
 use std::{fmt, iter, ptr, task, thread};
 
 use log::trace;
 
-use crate::setup::scheduler::{self, ProcessId};
+use crate::setup::scheduler::{self, Cfs, ProcessId, RunStats, Schedule};
 use crate::spawn::options::Priority;
 
 #[allow(clippy::cast_possible_truncation)]
 const SYSTEM_ACTORS: u16 = crate::worker::SYSTEM_ACTORS as u16;
 
-mod cfs;
 pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
-use cfs::Cfs;
-
 type Process<S> = process::Process<S, dyn scheduler::Process>;
-
-/// Scheduling implementation.
-///
-/// The type itself holds the per process data needed for scheduling.
-pub(crate) trait Schedule {
-    /// Create new data.
-    fn new(priority: Priority) -> Self;
-
-    /// Update the process data with the latest run information.
-    ///
-    /// Arguments:
-    ///  * `start`: time at which the latest run started.
-    ///  * `end`: time at which the latest run ended.
-    ///  * `elapsed`: `end - start`.
-    fn update(&mut self, start: Instant, end: Instant, elapsed: Duration);
-
-    /// Determine if the `lhs` or `rhs` should run first.
-    fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
-}
 
 #[derive(Debug)]
 pub(crate) struct Scheduler<S: Schedule = Cfs> {
@@ -159,7 +136,8 @@ impl<S: Schedule> Scheduler<S> {
 
     /// Add back a `process` that was previously removed via
     /// [`Scheduler::next_process`].
-    pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process<S>>>) {
+    pub(crate) fn add_back_process(&mut self, mut process: Pin<Box<Process<S>>>, stats: RunStats) {
+        process.as_mut().update(&stats);
         let pid = process.id();
         trace!(pid; "adding back process");
         let (offset, idx) = offset_idx(process.id());

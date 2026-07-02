@@ -27,6 +27,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
+use crate::setup::scheduler::SchedulerProcess;
 use crate::setup::timers::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
@@ -296,8 +297,8 @@ where
                     .borrow()
                     .waker_for_process(process.as_ref());
                 let mut ctx = task::Context::from_waker(&waker);
-                let result = process.as_mut().run(&mut ctx);
-                match result.result {
+                let stats = process.as_mut().run(&mut ctx);
+                match stats.result() {
                     task::Poll::Ready(()) => {
                         if let Err(err) = self.internals.scheduler.borrow_mut().complete(process) {
                             let msg = panic_message(&*err);
@@ -308,7 +309,7 @@ where
                         self.internals
                             .scheduler
                             .borrow_mut()
-                            .add_back_process(process);
+                            .add_back_process(process, stats);
                     }
                 }
                 trace::finish_rt(
@@ -317,7 +318,7 @@ where
                     "Running thread-local process",
                     &[("id", &pid.data()), ("name", &name)],
                 );
-                Some(result.elapsed)
+                Some(stats.elapsed())
             }
             None => None,
         }
@@ -338,13 +339,13 @@ where
                 log::debug!(worker_id = self.internals.id, pid, name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
-                let result = process.as_mut().run(&mut ctx);
-                match result.result {
+                let stats = process.as_mut().run(&mut ctx);
+                match stats.result() {
                     task::Poll::Ready(()) => {
                         self.internals.shared.complete(process);
                     }
                     task::Poll::Pending => {
-                        self.internals.shared.add_back_process(process);
+                        self.internals.shared.add_back_process(process, stats);
                     }
                 }
                 trace::finish_rt(
@@ -353,7 +354,7 @@ where
                     "Running thread-safe process",
                     &[("id", &pid.data()), ("name", &name)],
                 );
-                Some(result.elapsed)
+                Some(stats.elapsed())
             }
             None => None,
         }
