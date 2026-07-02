@@ -191,7 +191,8 @@ pub trait SchedulerProcess: Process {
 /// scheduler.
 ///
 /// This can only be created by one of the schedulers and should be seen as an
-/// opaque type otherwise.
+/// opaque type otherwise. The id must be unique within the scheduler while the
+/// process is alive (after it's dropped the id may be reused).
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ProcessId(usize);
 
