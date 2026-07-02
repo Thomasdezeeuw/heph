@@ -8,8 +8,6 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fmt, iter, ptr, task, thread};
 
-use log::trace;
-
 use crate::setup::scheduler::{self, Cfs, ProcessId, RunStats, Schedule};
 use crate::spawn::options::Priority;
 
@@ -85,18 +83,12 @@ impl<S: Schedule + fmt::Debug> scheduler::Scheduler for Scheduler<S> {
     }
 
     fn add_back_process(&mut self, mut process: Self::Process, stats: RunStats) {
-        let pid = process.id();
-        trace!(pid; "adding back process");
-
         process.as_mut().update(&stats);
         let (offset, idx) = offset_idx(process.id());
         self.inactive[offset].processes[idx as usize].add_back(process);
     }
 
     fn complete_process(&mut self, process: Self::Process) -> thread::Result<()> {
-        let pid = process.id();
-        trace!(pid; "removing process");
-
         let (offset, idx) = offset_idx(process.id());
         let inactive = &mut self.inactive[offset];
         inactive.processes[idx as usize].mark_empty();

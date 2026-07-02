@@ -295,6 +295,7 @@ where
                 let stats = process.as_mut().run(&mut ctx);
                 match stats.result() {
                     task::Poll::Ready(()) => {
+                        log::trace!(worker_id = self.internals.id, pid, name; "removing completed local process");
                         if let Err(err) = self
                             .internals
                             .scheduler
@@ -302,10 +303,11 @@ where
                             .complete_process(process)
                         {
                             let msg = panic_message(&*err);
-                            log::warn!("panicked while dropping process: {msg}");
+                            log::warn!(worker_id = self.internals.id, pid, name; "panicked while dropping process: {msg}");
                         }
                     }
                     task::Poll::Pending => {
+                        log::trace!(worker_id = self.internals.id, pid, name; "adding back local process");
                         self.internals
                             .scheduler
                             .borrow_mut()
