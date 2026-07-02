@@ -140,6 +140,45 @@ pub trait Schedule {
     fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
 }
 
+/// Basic [`Schedule`] implementation using the Completely Fair Scheduler (CFS)
+/// algorithm.
+///
+/// See <https://en.wikipedia.org/wiki/Completely_Fair_Scheduler> for more
+/// information about CFS.
+#[derive(Debug)]
+pub struct Cfs {
+    priority: Priority,
+    /// Fair runtime of the process, which is `actual runtime * priority`.
+    fair_runtime: Duration,
+}
+
+impl Schedule for Cfs {
+    fn new(priority: Priority) -> Cfs {
+        Cfs {
+            priority,
+            fair_runtime: Duration::ZERO,
+        }
+    }
+
+    fn update(&mut self, stats: &RunStats) {
+        self.fair_runtime += stats.elapsed() * self.priority;
+    }
+
+    fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering {
+        (rhs.fair_runtime)
+            .cmp(&(lhs.fair_runtime))
+            .then_with(|| lhs.priority.cmp(&rhs.priority))
+    }
+}
+
+impl Cfs {
+    /// Returns the calculated fair runtime.
+    #[cfg(any(test, feature = "test"))]
+    pub fn fair_runtime(&mut self) -> Duration {
+        self.fair_runtime
+    }
+}
+
 /// Pollable process.
 ///
 /// A process that can be added to a [`Scheduler`], see
@@ -238,6 +277,20 @@ pub struct RunStats {
 }
 
 impl RunStats {
+    /// Create new run statictics.
+    ///
+    /// `end` must before `start` otherwise this will panic.
+    #[cfg(any(test, feature = "test"))]
+    pub fn new(start: Instant, end: Instant, result: Poll<()>) -> RunStats {
+        let elapsed = end.duration_since(start);
+        RunStats {
+            start,
+            end,
+            elapsed,
+            result,
+        }
+    }
+
     /// When the processes started running.
     pub fn start(&self) -> Instant {
         self.start
