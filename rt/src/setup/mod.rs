@@ -19,6 +19,7 @@ use heph::actor_ref::ActorGroup;
 use crate::trace;
 use crate::{Error, Runtime, coordinator, shared, worker};
 
+pub mod scheduler;
 pub mod timers;
 
 use timers::{DefaultTimers, Timers};
