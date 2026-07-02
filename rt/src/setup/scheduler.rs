@@ -138,6 +138,15 @@ pub trait Schedule {
     fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
 }
 
+/// Pollable process.
+///
+/// A process that can be added to a [`Scheduler`], see
+/// [`Scheduler::add_process`].
+pub trait Process: Future<Output = ()> {
+    /// Return the name of this process.
+    fn name(&self) -> &'static str;
+}
+
 /// Process id, or pid for short, is an identifier for a process in the
 /// scheduler.
 ///
