@@ -3,6 +3,7 @@
 use std::collections::BinaryHeap;
 use std::mem::{self, replace, size_of};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -148,6 +149,9 @@ impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
         self.has_ready_process() || self.inactive.iter().any(|p| p.length >= 1)
     }
 }
+
+impl<S> UnwindSafe for LocalScheduler<S> {}
+impl<S> RefUnwindSafe for LocalScheduler<S> {}
 
 /// Create a pid from the `offset` in `LocalScheduler::inactive` and the `idx`
 /// into `Process:processes` (and `Processes:bitmap`).
