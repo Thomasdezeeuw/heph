@@ -18,6 +18,11 @@ fn future_task() {
         }
     }
 
+    async fn my_task() {
+        unimplemented!();
+    }
+
     assert_eq!(FutureTask::new(MyTask).name(), "MyTask");
     assert_eq!(FutureTask::new(std::future::pending()).name(), "Pending");
+    assert_eq!(FutureTask::new(my_task()).name(), "my_task");
 }
