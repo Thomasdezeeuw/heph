@@ -27,12 +27,16 @@ pub struct Process<S, T: ?Sized> {
 
 impl<S: Schedule, T: Task + ?Sized> Process<S, T> {
     /// Create a new process container.
-    pub(crate) fn new(id: ProcessId, priority: Priority, task: Pin<Box<T>>) -> Process<S, T> {
-        Process {
+    pub(crate) fn new(
+        id: ProcessId,
+        priority: Priority,
+        task: Pin<Box<T>>,
+    ) -> Pin<Box<Process<S, T>>> {
+        Box::pin(Process {
             id,
             scheduler_data: S::new(priority),
             task,
-        }
+        })
     }
 
     pub(crate) fn update(self: Pin<&mut Self>, stats: &RunStats) {

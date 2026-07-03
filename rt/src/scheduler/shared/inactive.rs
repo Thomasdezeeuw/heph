@@ -741,11 +741,7 @@ mod tests {
     }
 
     fn test_process() -> Pin<Box<Process>> {
-        let mut process = Box::pin(Process::new(
-            ProcessId::new(0),
-            Priority::default(),
-            Box::pin(TestTask),
-        ));
+        let mut process = Process::new(ProcessId::new(0), Priority::default(), Box::pin(TestTask));
         process.set_id();
         process
     }
@@ -852,11 +848,7 @@ mod tests {
     fn dropping_tagged_process() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let mut process = Box::pin(Process::new(
-            ProcessId::new(0),
-            Priority::default(),
-            process,
-        ));
+        let mut process = Process::new(ProcessId::new(0), Priority::default(), process);
         process.set_id();
         let ptr = tag_process(process);
 
@@ -869,11 +861,7 @@ mod tests {
     fn dropping_tagged_branch() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let mut process = Box::pin(Process::new(
-            ProcessId::new(0),
-            Priority::default(),
-            process,
-        ));
+        let mut process = Process::new(ProcessId::new(0), Priority::default(), process);
         process.set_id();
         let process_ptr = tag_process(process);
 

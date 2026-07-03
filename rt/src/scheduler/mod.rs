@@ -122,7 +122,7 @@ impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
 
     fn add_boxed_task(&mut self, priority: Priority, task: Pin<Box<dyn Task>>) -> ProcessId {
         let pid = self.reserve_slot();
-        let process = Box::pin(Process::<S>::new(pid, priority, task));
+        let process = Process::<S>::new(pid, priority, task);
         self.ready.push(process);
         pid
     }

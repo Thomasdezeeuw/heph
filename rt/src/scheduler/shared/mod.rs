@@ -133,7 +133,7 @@ impl Scheduler {
         priority: Priority,
         task: Pin<Box<dyn Task + Send + Sync>>,
     ) -> ProcessId {
-        let mut process = Box::pin(Process::new(ProcessId::new(0), priority, task));
+        let mut process = Process::new(ProcessId::new(0), priority, task);
         Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);
