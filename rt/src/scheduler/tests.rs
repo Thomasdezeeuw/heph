@@ -12,8 +12,9 @@ use heph::ActorFutureBuilder;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
-use crate::scheduler::process::{self, FutureProcess, RunStats};
-use crate::scheduler::{Cfs, Process, ProcessId, Scheduler};
+use crate::scheduler::process::{self, RunStats};
+use crate::scheduler::{Cfs, Process, Scheduler};
+use crate::setup::scheduler::{self, FutureProcess, ProcessId};
 use crate::spawn::options::Priority;
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::worker::SYSTEM_ACTORS;
@@ -21,44 +22,39 @@ use crate::{Access, ThreadLocal};
 
 #[test]
 fn size_assertions() {
-    assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(40);
+    assert_size::<process::Process<Cfs, Box<dyn scheduler::Process>>>(40);
     assert_size::<Process<Cfs>>(48);
 }
 
 #[derive(Debug)]
 struct NopTestProcess;
 
-impl process::Run for NopTestProcess {
+impl scheduler::Process for NopTestProcess {
     fn name(&self) -> &'static str {
         "NopTestProcess"
     }
+}
 
-    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+impl Future for NopTestProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
         unimplemented!();
     }
 }
 
 #[test]
-fn pid() {
-    assert_eq!(ProcessId(0), ProcessId(0));
-    assert_eq!(ProcessId(100), ProcessId(100));
-
-    assert!(ProcessId(0) < ProcessId(100));
-
-    assert_eq!(ProcessId(0).to_string(), "0");
-    assert_eq!(ProcessId(100).to_string(), "100");
-    assert_eq!(ProcessId(8000).to_string(), "8000");
-}
-
-#[test]
 #[allow(clippy::eq_op)] // Need to compare `Process` to itself.
 fn process_data_equality() {
-    let process1 = Process::<Cfs>::new(ProcessId(0), Priority::LOW, Box::pin(NopTestProcess));
-    let process2 = Process::<Cfs>::new(ProcessId(1), Priority::NORMAL, Box::pin(NopTestProcess));
-    let process3 = Process::<Cfs>::new(ProcessId(2), Priority::HIGH, Box::pin(NopTestProcess));
-    let process4 = Process::<Cfs>::new(ProcessId(3), Priority::LOW, Box::pin(NopTestProcess));
+    let process1 = Process::<Cfs>::new(ProcessId::new(0), Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = Process::<Cfs>::new(
+        ProcessId::new(1),
+        Priority::NORMAL,
+        Box::pin(NopTestProcess),
+    );
+    let process3 = Process::<Cfs>::new(ProcessId::new(2), Priority::HIGH, Box::pin(NopTestProcess));
+    let process4 = Process::<Cfs>::new(ProcessId::new(3), Priority::LOW, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -85,12 +81,16 @@ fn process_data_equality() {
 #[derive(Debug)]
 struct SleepyProcess(Duration);
 
-impl process::Run for SleepyProcess {
+impl scheduler::Process for SleepyProcess {
     fn name(&self) -> &'static str {
         "SleepyProcess"
     }
+}
 
-    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+impl Future for SleepyProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
         sleep(self.0);
         Poll::Pending
     }
@@ -101,7 +101,7 @@ fn process_data_runtime_increase() {
     const SLEEP_TIME: Duration = Duration::from_millis(10);
 
     let mut process = Box::pin(Process::<Cfs>::new(
-        ProcessId(0),
+        ProcessId::new(0),
         Priority::HIGH,
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
@@ -120,17 +120,17 @@ fn process_data_runtime_increase() {
 #[test]
 fn future_process_assert_future_unmoved() {
     let process = FutureProcess(AssertUnmoved::new(pending()));
-    let mut process: Pin<Box<dyn process::Run>> = Box::pin(process);
+    let mut process: Pin<Box<dyn scheduler::Process>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().run(&mut ctx);
+    let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
 }
 

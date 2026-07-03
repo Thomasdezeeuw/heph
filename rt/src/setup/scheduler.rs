@@ -24,8 +24,12 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, thread};
 
+use heph::{ActorFuture, NewActor, Supervisor};
+
 use crate::panic_message;
 use crate::spawn::options::Priority;
+
+pub use crate::scheduler::LocalScheduler;
 
 /// Scheduler implementation.
 ///
@@ -39,7 +43,7 @@ use crate::spawn::options::Priority;
 /// defined scheduling implementation.
 pub trait Scheduler: fmt::Debug {
     /// Process that is ready to run.
-    type Process: SchedulerProcess;
+    type Process: SchedulerProcess + Unpin;
 
     /// Returns the next process that is ready to run, if any, as well as waker
     /// for it.
@@ -83,10 +87,26 @@ pub trait Scheduler: fmt::Debug {
         catch_unwind(AssertUnwindSafe(|| drop(process)))
     }
 
+    // TODO: Currently LocalRuntimeData::add_local_process uses `Pin<Box<dyn
+    // Process>>` as process. See if this can be changed (hard to do with dyn
+    // traits). Otherwise maybe change it here? For now add_boxed_process is
+    // used as a work around to not allocate twice in the scheduler.
+
     /// Add a new process to the scheduler.
     fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
     where
-        P: Process;
+        P: Process + 'static;
+
+    /// Specialisation for adding boxed processes. Aiming to get rid of the box
+    /// and this method.
+    #[doc(hidden)]
+    fn add_boxed_process(
+        &mut self,
+        priority: Priority,
+        process: Pin<Box<dyn Process>>,
+    ) -> ProcessId {
+        self.add_process(priority, process)
+    }
 
     /// Mark all processes that are awoken as ready.
     ///
@@ -112,6 +132,9 @@ pub trait Scheduler: fmt::Debug {
         self.has_ready_process() || self.processes_inactive() >= 1
     }
 }
+
+/// Default scheduler.
+pub(crate) type DefaultScheduler = fn(a10::SubmissionQueue) -> LocalScheduler<Cfs>;
 
 /// Scheduling implementation.
 ///
@@ -140,6 +163,45 @@ pub trait Schedule {
     fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
 }
 
+/// Completely Fair Scheduler (CFS) algorithm.
+///
+/// Implements [`Schedule`] so it can be used in different [`Scheduler`]s. See
+/// <https://en.wikipedia.org/wiki/Completely_Fair_Scheduler> for more
+/// information about CFS.
+#[derive(Debug)]
+pub struct Cfs {
+    priority: Priority,
+    /// Fair runtime of the process, which is `actual runtime * priority`.
+    fair_runtime: Duration,
+}
+
+impl Schedule for Cfs {
+    fn new(priority: Priority) -> Cfs {
+        Cfs {
+            priority,
+            fair_runtime: Duration::ZERO,
+        }
+    }
+
+    fn update(&mut self, stats: &RunStats) {
+        self.fair_runtime += stats.elapsed() * self.priority;
+    }
+
+    fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering {
+        (rhs.fair_runtime)
+            .cmp(&(lhs.fair_runtime))
+            .then_with(|| lhs.priority.cmp(&rhs.priority))
+    }
+}
+
+impl Cfs {
+    /// Returns the calculated fair runtime.
+    #[cfg(any(test, feature = "test"))]
+    pub fn fair_runtime(&mut self) -> Duration {
+        self.fair_runtime
+    }
+}
+
 /// Pollable process.
 ///
 /// A process that can be added to a [`Scheduler`], see
@@ -147,6 +209,64 @@ pub trait Schedule {
 pub trait Process: Future<Output = ()> {
     /// Return the name of this process.
     fn name(&self) -> &'static str;
+}
+
+impl<T> Process for Pin<T>
+where
+    T: std::ops::DerefMut<Target: Process>, // NOTE: DerefMut is required for Future impl.
+{
+    fn name(&self) -> &'static str {
+        (&**self).name()
+    }
+}
+
+impl<T> Process for Box<T>
+where
+    T: Process + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+{
+    fn name(&self) -> &'static str {
+        (&**self).name()
+    }
+}
+
+/// Wrapper around a [`Future`] to implement [`Process`].
+///
+/// NOTE: this type only exists because we can add a default implementation for
+/// Fut where Fut: Future, and have a separate one for ActorFuture. Once that
+/// kind of specialisation is possible this type can be remove.
+pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
+
+impl<Fut> Process for FutureProcess<Fut>
+where
+    Fut: Future<Output = ()>,
+{
+    fn name(&self) -> &'static str {
+        // TODO: improve this using `heph::actor::name::<Fut>()`.
+        "FutureProcess"
+    }
+}
+
+impl<Fut> Future for FutureProcess<Fut>
+where
+    Fut: Future<Output = ()>,
+{
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the future.
+        unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.0) }.poll(ctx)
+    }
+}
+
+impl<S, NA> Process for ActorFuture<S, NA>
+where
+    S: Supervisor<NA>,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
+{
+    fn name(&self) -> &'static str {
+        NA::name()
+    }
 }
 
 /// Process that is part of a [`Scheduler`].
@@ -184,6 +304,24 @@ pub trait SchedulerProcess: Process {
             elapsed,
             result,
         }
+    }
+}
+
+impl<T> SchedulerProcess for Pin<T>
+where
+    T: std::ops::DerefMut<Target: SchedulerProcess>, // NOTE: DerefMut is required for Future impl.
+{
+    fn id(&self) -> ProcessId {
+        (&**self).id()
+    }
+}
+
+impl<T> SchedulerProcess for Box<T>
+where
+    T: SchedulerProcess + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+{
+    fn id(&self) -> ProcessId {
+        (&**self).id()
     }
 }
 
@@ -238,6 +376,20 @@ pub struct RunStats {
 }
 
 impl RunStats {
+    /// Create new run statictics.
+    ///
+    /// `end` must before `start` otherwise this will panic.
+    #[cfg(any(test, feature = "test"))]
+    pub fn new(start: Instant, end: Instant, result: Poll<()>) -> RunStats {
+        let elapsed = end.duration_since(start);
+        RunStats {
+            start,
+            end,
+            elapsed,
+            result,
+        }
+    }
+
     /// When the processes started running.
     pub fn start(&self) -> Instant {
         self.start

@@ -14,7 +14,9 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
-use crate::scheduler::{self, Scheduler};
+#[cfg(any(test, feature = "test"))]
+use crate::scheduler::LocalScheduler;
+use crate::setup::scheduler::{Process, ProcessId, Scheduler};
 use crate::setup::timers::{TimerToken, Timers};
 use crate::spawn::options::Priority;
 #[cfg(any(test, feature = "test"))]
@@ -44,11 +46,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
 
-    fn add_local_process(
-        &self,
-        priority: Priority,
-        process: Pin<Box<dyn scheduler::process::Run>>,
-    ) -> scheduler::ProcessId;
+    fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId;
 
     fn start_trace(&self) -> Option<trace::EventTiming>;
     fn finish_trace(
@@ -71,15 +69,15 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
-pub(crate) struct RuntimeInternals<T> {
+pub(crate) struct RuntimeInternals<S, T> {
     /// Unique id among the worker threads.
     pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
     pub(crate) shared: Arc<shared::RuntimeInternals>,
-    /// Scheduler for thread-local actors.
-    pub(crate) scheduler: RefCell<Scheduler>,
     /// I/O ring.
     pub(crate) ring: RefCell<a10::Ring>,
+    /// Scheduler for thread-local actors.
+    pub(crate) scheduler: RefCell<S>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<T>,
     /// Actor references to relay received process signals to.
@@ -102,7 +100,7 @@ pub(crate) struct RuntimeInternals<T> {
     error: RefCell<Option<worker::Error>>,
 }
 
-impl<T> RuntimeInternals<T>
+impl<S, T> RuntimeInternals<S, T>
 where
     Self: LocalRuntimeData,
 {
@@ -111,14 +109,15 @@ where
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
         ring: a10::Ring,
+        scheduler: S,
         timers: T,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
-    ) -> RuntimeInternals<T> {
+    ) -> RuntimeInternals<S, T> {
         RuntimeInternals {
             id,
             shared: shared_internals,
-            scheduler: RefCell::new(Scheduler::new(ring.sq())),
+            scheduler: RefCell::new(scheduler),
             ring: RefCell::new(ring),
             timers: RefCell::new(timers),
             signal_receivers: RefCell::new(ActorGroup::empty()),
@@ -175,15 +174,17 @@ where
 }
 
 #[cfg(any(test, feature = "test"))]
-impl RuntimeInternals<TimingWheel> {
+impl RuntimeInternals<LocalScheduler, TimingWheel> {
     pub(crate) fn new_test(
         shared_internals: Arc<shared::RuntimeInternals>,
-    ) -> RuntimeInternals<TimingWheel> {
+    ) -> RuntimeInternals<LocalScheduler, TimingWheel> {
         let ring = a10::Ring::new().unwrap();
+        let sq = ring.sq();
         RuntimeInternals::new(
             NonZeroUsize::new(1).unwrap(),
             shared_internals,
             ring,
+            LocalScheduler::new(sq),
             TimingWheel::new(),
             None,
             None,
@@ -191,8 +192,9 @@ impl RuntimeInternals<TimingWheel> {
     }
 }
 
-impl<T> LocalRuntimeData for RuntimeInternals<T>
+impl<S, T> LocalRuntimeData for RuntimeInternals<S, T>
 where
+    S: Scheduler + 'static,
     T: Timers + 'static,
 {
     fn worker_id(&self) -> NonZeroUsize {
@@ -272,14 +274,10 @@ where
         self.timers.borrow_mut().remove(deadline, token);
     }
 
-    fn add_local_process(
-        &self,
-        priority: Priority,
-        process: Pin<Box<dyn scheduler::process::Run>>,
-    ) -> scheduler::ProcessId {
+    fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId {
         self.scheduler
             .borrow_mut()
-            .add_new_process(priority, process)
+            .add_boxed_process(priority, process)
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
@@ -310,8 +308,8 @@ where
         let scheduler = self.scheduler.borrow();
         let mut timers = self.timers.borrow_mut();
         LocalMetrics {
-            scheduler_ready: scheduler.ready(),
-            scheduler_inactive: scheduler.inactive(),
+            scheduler_ready: scheduler.processes_ready(),
+            scheduler_inactive: scheduler.processes_inactive(),
             timers: timers.len(),
             timers_next: timers.until_next_deadline(),
             trace_counter: self

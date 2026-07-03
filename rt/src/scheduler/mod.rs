@@ -1,4 +1,4 @@
-//! Scheduler implementations.
+//! Default scheduler implementations.
 
 use std::collections::BinaryHeap;
 use std::mem::{self, replace, size_of};
@@ -6,110 +6,41 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
 use std::{fmt, iter, ptr, task, thread};
 
-use log::trace;
-
+use crate::setup::scheduler::{
+    self, Cfs, ProcessId, RunStats, Schedule, Scheduler, SchedulerProcess,
+};
 use crate::spawn::options::Priority;
 
-#[allow(clippy::cast_possible_truncation)]
-const SYSTEM_ACTORS: u16 = crate::worker::SYSTEM_ACTORS as u16;
-
-mod cfs;
 pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
-use cfs::Cfs;
-pub(crate) use process::ProcessId;
+type Process<S> = process::Process<S, dyn scheduler::Process>;
 
-type Process<S> = process::Process<S, dyn process::Run>;
-
-/// Scheduling implementation.
+/// Local scheduler.
 ///
-/// The type itself holds the per process data needed for scheduling.
-pub(crate) trait Schedule {
-    /// Create new data.
-    fn new(priority: Priority) -> Self;
-
-    /// Update the process data with the latest run information.
-    ///
-    /// Arguments:
-    ///  * `start`: time at which the latest run started.
-    ///  * `end`: time at which the latest run ended.
-    ///  * `elapsed`: `end - start`.
-    fn update(&mut self, start: Instant, end: Instant, elapsed: Duration);
-
-    /// Determine if the `lhs` or `rhs` should run first.
-    fn order(lhs: &Self, rhs: &Self) -> std::cmp::Ordering;
-}
-
+/// Holds all local processes for a single worker, schedules them using the
+/// [`Schedule`] implementation `S` defaulting to [`Cfs`].
 #[derive(Debug)]
-pub(crate) struct Scheduler<S: Schedule = Cfs> {
+pub struct LocalScheduler<S: Schedule = Cfs> {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<Process<S>>>>,
     /// Processes that are not ready to run.
     inactive: Vec<Processes<S>>,
 }
 
-impl<S: Schedule> Scheduler<S> {
-    /// Create a new `Scheduler`.
-    pub(crate) fn new(sq: a10::SubmissionQueue) -> Scheduler<S> {
+impl<S: Schedule> LocalScheduler<S> {
+    /// Create a new local scheduler.
+    pub fn new(sq: a10::SubmissionQueue) -> LocalScheduler<S> {
         let mut inactive = Vec::with_capacity(8);
         inactive.push(Processes::new(sq));
-        Scheduler {
+        LocalScheduler {
             ready: BinaryHeap::with_capacity(8),
             inactive,
         }
-    }
-
-    /// Returns true if the scheduler has any processes that are ready to run.
-    pub(crate) fn has_ready_process(&self) -> bool {
-        !self.ready.is_empty()
-    }
-
-    /// Returns true if the scheduler has any user processes (in any state),
-    /// false otherwise. This ignore system processes.
-    pub(crate) fn has_user_process(&self) -> bool {
-        self.has_ready_process() || self.inactive.iter().any(|p| p.length > SYSTEM_ACTORS)
-    }
-
-    /// Returns the number of processes ready to run.
-    pub(crate) fn ready(&self) -> usize {
-        self.ready.len()
-    }
-
-    /// Returns the number of inactive processes.
-    pub(crate) fn inactive(&self) -> usize {
-        self.inactive.iter().map(|p| usize::from(p.length)).sum()
-    }
-
-    /// Mark all processes that are awoken as ready.
-    pub(crate) fn ready_processes(&mut self) -> usize {
-        let mut amount = 0;
-        for inactive in &mut self.inactive {
-            for index in inactive.bitmap.set_iter() {
-                if let Some(process) = inactive.processes[index as usize].mark_ready() {
-                    self.ready.push(process);
-                    amount += 1;
-                }
-            }
-        }
-        amount
-    }
-
-    /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process(
-        &mut self,
-        priority: Priority,
-        process: Pin<Box<dyn process::Run>>,
-    ) -> ProcessId {
-        let pid = self.reserve_slot();
-        let process = Box::pin(Process::<S>::new(pid, priority, process));
-        self.ready.push(process);
-        pid
     }
 
     /// Reserve a slot for a process, returning the process id.
@@ -145,35 +76,25 @@ impl<S: Schedule> Scheduler<S> {
 
         pid(self.inactive.len() - 1, 0)
     }
+}
 
-    /// Returns the next ready process.
-    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<Process<S>>>> {
-        self.ready.pop()
-    }
+impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
+    type Process = Pin<Box<Process<S>>>;
 
-    /// Create a new waker for `process`.
-    pub(crate) fn waker_for_process(&self, process: Pin<&Process<S>>) -> task::Waker {
+    fn next_process(&mut self) -> Option<(Self::Process, task::Waker)> {
+        let process = self.ready.pop()?;
         let (offset, idx) = offset_idx(process.id());
-        self.inactive[offset].bitmap.new_waker(idx)
+        let waker = self.inactive[offset].bitmap.new_waker(idx);
+        Some((process, waker))
     }
 
-    /// Add back a `process` that was previously removed via
-    /// [`Scheduler::next_process`].
-    pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process<S>>>) {
-        let pid = process.id();
-        trace!(pid; "adding back process");
+    fn add_back_process(&mut self, mut process: Self::Process, stats: RunStats) {
+        process.as_mut().update(&stats);
         let (offset, idx) = offset_idx(process.id());
         self.inactive[offset].processes[idx as usize].add_back(process);
     }
 
-    /// Mark `process` as complete, removing it from the scheduler.
-    ///
-    /// Returns a possible panic (as error) from dropping the process. The
-    /// scheduler is not affected by this.
-    pub(crate) fn complete(&mut self, process: Pin<Box<Process<S>>>) -> thread::Result<()> {
-        let pid = process.id();
-        trace!(pid; "removing process");
-
+    fn complete_process(&mut self, process: Self::Process) -> thread::Result<()> {
         let (offset, idx) = offset_idx(process.id());
         let inactive = &mut self.inactive[offset];
         inactive.processes[idx as usize].mark_empty();
@@ -185,19 +106,66 @@ impl<S: Schedule> Scheduler<S> {
         // Don't want to panic when dropping the process.
         catch_unwind(AssertUnwindSafe(move || drop(process)))
     }
+
+    fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
+    where
+        P: scheduler::Process + 'static,
+    {
+        self.add_boxed_process(priority, Box::pin(process))
+    }
+
+    fn add_boxed_process(
+        &mut self,
+        priority: Priority,
+        process: Pin<Box<dyn scheduler::Process>>,
+    ) -> ProcessId {
+        let pid = self.reserve_slot();
+        let process = Box::pin(Process::<S>::new(pid, priority, process));
+        self.ready.push(process);
+        pid
+    }
+
+    fn process_wakeups(&mut self) -> usize {
+        let mut amount = 0;
+        for inactive in &mut self.inactive {
+            for index in inactive.bitmap.set_iter() {
+                if let Some(process) = inactive.processes[index as usize].mark_ready() {
+                    self.ready.push(process);
+                    amount += 1;
+                }
+            }
+        }
+        amount
+    }
+
+    fn processes_ready(&self) -> usize {
+        self.ready.len()
+    }
+
+    fn has_ready_process(&self) -> bool {
+        !self.ready.is_empty()
+    }
+
+    fn processes_inactive(&self) -> usize {
+        self.inactive.iter().map(|p| usize::from(p.length)).sum()
+    }
+
+    fn has_process(&self) -> bool {
+        self.has_ready_process() || self.inactive.iter().any(|p| p.length >= 1)
+    }
 }
 
-/// Create a pid from the `offset` in `Scheduler::inactive` and the `idx` into
-/// `Process:processes` (and `Processes:bitmap`).
+/// Create a pid from the `offset` in `LocalScheduler::inactive` and the `idx`
+/// into `Process:processes` (and `Processes:bitmap`).
 fn pid(offset: usize, idx: u16) -> ProcessId {
-    ProcessId(offset << GROUP_SHIFT | idx as usize)
+    ProcessId::new(offset << GROUP_SHIFT | idx as usize)
 }
 
 /// Reverse of [`pid`].
 #[allow(clippy::cast_possible_truncation)]
 fn offset_idx(pid: ProcessId) -> (usize, u16) {
-    let idx = (pid.0 & ((1 << GROUP_SHIFT) - 1)) as u16;
-    let offset = pid.0 >> GROUP_SHIFT;
+    let idx = (pid.data() & ((1 << GROUP_SHIFT) - 1)) as u16;
+    let offset = pid.data() >> GROUP_SHIFT;
     (offset, idx)
 }
 

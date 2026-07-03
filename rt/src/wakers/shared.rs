@@ -5,7 +5,7 @@ use std::sync::Weak;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::task;
 
-use crate::scheduler::ProcessId;
+use crate::setup::scheduler::ProcessId;
 use crate::shared;
 
 /// Maximum number of runtimes supported.
@@ -97,7 +97,7 @@ struct WakerData(usize);
 impl WakerData {
     /// Create new `WakerData`.
     fn new(waker_id: WakersId, pid: ProcessId) -> WakerData {
-        let data = WakerData(pid.0 | ((waker_id.0 as usize) << WAKER_ID_SHIFT));
+        let data = WakerData(pid.data() | ((waker_id.0 as usize) << WAKER_ID_SHIFT));
         debug_assert!(
             data.pid() == pid && data.waker_id() == waker_id,
             "`ProcessId` too large for `WakerData`"
@@ -116,7 +116,7 @@ impl WakerData {
     const fn pid(self) -> ProcessId {
         // SAFETY: we know we won't truncate the pid, we checked in
         // `WakerData::new`.
-        ProcessId(self.0 & PID_MASK)
+        ProcessId::new(self.0 & PID_MASK)
     }
 
     /// Convert raw data from [`task::RawWaker`] into [`WakerData`].

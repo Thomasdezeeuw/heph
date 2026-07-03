@@ -9,8 +9,8 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
 use crate::ThreadSafe;
-use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, Process, Scheduler};
+use crate::setup::scheduler::{FutureProcess, ProcessId};
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]
@@ -81,7 +81,7 @@ fn marking_unknown_pid_as_ready() {
     assert_eq!(scheduler.remove(), None);
 
     // Scheduling an unknown process should do nothing.
-    scheduler.mark_ready(ProcessId(0));
+    scheduler.mark_ready(ProcessId::new(0));
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
     assert_eq!(scheduler.remove(), None);

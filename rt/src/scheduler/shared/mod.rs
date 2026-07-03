@@ -4,7 +4,8 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::scheduler::{Cfs, ProcessId, process};
+use crate::scheduler::{Cfs, process};
+use crate::setup::scheduler::{self, ProcessId, RunStats};
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -15,7 +16,7 @@ mod tests;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
-pub(crate) type Process = process::Process<Cfs, dyn process::Run + Send + Sync>;
+pub(crate) type Process = process::Process<Cfs, dyn scheduler::Process + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.
@@ -130,9 +131,9 @@ impl Scheduler {
     pub(crate) fn add_new_process(
         &self,
         priority: Priority,
-        process: Pin<Box<dyn process::Run + Send + Sync>>,
+        process: Pin<Box<dyn scheduler::Process + Send + Sync>>,
     ) -> ProcessId {
-        let mut process = Box::pin(Process::new(ProcessId(0), priority, process));
+        let mut process = Box::pin(Process::new(ProcessId::new(0), priority, process));
         Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);
@@ -162,7 +163,8 @@ impl Scheduler {
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::remove`] and add it to the inactive list.
-    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
+    pub(crate) fn add_back_process(&self, mut process: Pin<Box<Process>>, stats: RunStats) {
+        process.as_mut().update(&stats);
         let pid = process.id();
         trace!(pid; "adding back process");
         self.inactive.add(process, &self.ready);

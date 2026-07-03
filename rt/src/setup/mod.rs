@@ -22,6 +22,7 @@ use crate::{Error, Runtime, coordinator, shared, worker};
 pub mod scheduler;
 pub mod timers;
 
+use scheduler::{Cfs, DefaultScheduler, LocalScheduler, Scheduler};
 use timers::{DefaultTimers, Timers};
 
 /// Setup a [`Runtime`].
@@ -32,11 +33,13 @@ use timers::{DefaultTimers, Timers};
 /// [crate documentation]: crate#running-hephs-runtime
 #[derive(Debug)]
 #[must_use = "`heph_rt::Setup` doesn't do anything until its `build`"]
-pub struct Setup<FT = DefaultTimers> {
+pub struct Setup<FS = DefaultScheduler, FT = DefaultTimers> {
     /// Name of the application.
     name: Option<String>,
     /// Number of worker threads to create.
     threads: usize,
+    /// Function to create a [`Scheduler`] implementation per worker thread.
+    create_scheduler: FS,
     /// Function to create a [`Timers`] implementation per worker thread.
     create_timers: FT,
     /// Whether or not to automatically set CPU affinity.
@@ -58,6 +61,7 @@ impl Setup {
         Setup {
             name: None,
             threads: 1,
+            create_scheduler: LocalScheduler::<Cfs>::new,
             create_timers: timers::TimingWheel::new,
             auto_cpu_affinity: false,
             run_poll_ratio: 32,
@@ -67,8 +71,10 @@ impl Setup {
     }
 }
 
-impl<FT, T> Setup<FT>
+impl<FS, S, FT, T> Setup<FS, FT>
 where
+    FS: FnOnce(a10::SubmissionQueue) -> S + Clone + Send + 'static,
+    S: Scheduler + 'static,
     FT: FnOnce() -> T + Clone + Send + 'static,
     T: Timers + 'static,
 {
@@ -121,6 +127,35 @@ where
         self.threads
     }
 
+    /// Change the thread-local [`Scheduler`] implementation.
+    ///
+    /// The function `create_scheduler` will be called on each worker to create
+    /// a new [`Scheduler`] implementation for each thread.
+    ///
+    /// Defaults to [`LocalScheduler`].
+    ///
+    /// # Notes
+    ///
+    /// This doesn't change the implementation for thread-safe scheduler.
+    pub fn with_scheduler<FS2, S2>(self, create_scheduler: FS2) -> Setup<FS2, FT>
+    where
+        FS2: FnOnce(a10::SubmissionQueue) -> S2 + Clone + Send + 'static,
+        S2: Scheduler + 'static,
+    {
+        #[rustfmt::skip]
+        let Setup { name, threads, create_scheduler: _, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time, trace_log } = self;
+        Setup {
+            name,
+            threads,
+            create_scheduler,
+            create_timers,
+            auto_cpu_affinity,
+            run_poll_ratio,
+            max_run_time,
+            trace_log,
+        }
+    }
+
     /// Change the thread-local [`Timers`] implementation.
     ///
     /// The function `create_timers` will be called on each worker to create a
@@ -133,16 +168,17 @@ where
     /// # Notes
     ///
     /// This doesn't change the implementation for thread-safe timers.
-    pub fn with_timers<FT2, T2>(self, create_timers: FT2) -> Setup<FT2>
+    pub fn with_timers<FT2, T2>(self, create_timers: FT2) -> Setup<FS, FT2>
     where
         FT2: FnOnce() -> T2 + Clone + Send + 'static,
         T2: Timers + 'static,
     {
         #[rustfmt::skip]
-        let Setup { name, threads, create_timers: _, auto_cpu_affinity, run_poll_ratio, max_run_time, trace_log } = self;
+        let Setup { name, threads, create_scheduler, create_timers: _, auto_cpu_affinity, run_poll_ratio, max_run_time, trace_log } = self;
         Setup {
             name,
             threads,
+            create_scheduler,
             create_timers,
             auto_cpu_affinity,
             run_poll_ratio,
@@ -227,7 +263,7 @@ where
     /// to run all the actors.
     pub fn build(self) -> Result<Runtime, Error> {
         #[rustfmt::skip]
-        let Setup { name, threads, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time, mut trace_log } = self;
+        let Setup { name, threads, create_scheduler, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time, mut trace_log } = self;
         let timing = trace::start(&trace_log);
 
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
@@ -251,6 +287,7 @@ where
                 // Coordinator has id 0.
                 id: NonZeroUsize::new(id).unwrap(),
                 shared_internals: internals.clone(),
+                create_scheduler: create_scheduler.clone(),
                 create_timers: create_timers.clone(),
                 auto_cpu_affinity,
                 run_poll_ratio,

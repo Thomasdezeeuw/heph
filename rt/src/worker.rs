@@ -16,6 +16,7 @@
 //! [started]: WorkerSetup::start
 
 use std::num::NonZeroUsize;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -27,6 +28,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
+use crate::setup::scheduler::{Process, Scheduler, SchedulerProcess};
 use crate::setup::timers::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
@@ -34,12 +36,13 @@ use crate::util::next;
 use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
-pub(crate) const SYSTEM_ACTORS: usize = 2;
+const SYSTEM_ACTORS: usize = 2;
 
 /// Configuratiob of a [`Worker`].
-pub(crate) struct Conf<FT> {
+pub(crate) struct Conf<FS, FT> {
     pub(crate) id: NonZeroUsize,
     pub(crate) shared_internals: Arc<shared::RuntimeInternals>,
+    pub(crate) create_scheduler: FS,
     pub(crate) create_timers: FT,
     pub(crate) auto_cpu_affinity: bool,
     pub(crate) run_poll_ratio: usize,
@@ -47,8 +50,10 @@ pub(crate) struct Conf<FT> {
 }
 
 /// Spawn a new worker thread.
-pub(crate) fn spawn_thread<FT, T>(conf: Conf<FT>) -> io::Result<Spawned>
+pub(crate) fn spawn_thread<FS, S, FT, T>(conf: Conf<FS, FT>) -> io::Result<Spawned>
 where
+    FS: FnOnce(a10::SubmissionQueue) -> S + Send + 'static,
+    S: Scheduler + 'static,
     FT: FnOnce() -> T + Send + 'static,
     T: Timers + 'static,
 {
@@ -137,8 +142,13 @@ impl Handle {
 }
 
 /// Main function of a worker thread.
-fn main<FT, T>(conf: Conf<FT>, init: Arc<OnceLock<ActorRef<Control>>>) -> Result<(), Error>
+fn main<FS, S, FT, T>(
+    conf: Conf<FS, FT>,
+    init: Arc<OnceLock<ActorRef<Control>>>,
+) -> Result<(), Error>
 where
+    FS: FnOnce(a10::SubmissionQueue) -> S,
+    S: Scheduler + 'static,
     FT: FnOnce() -> T,
     T: Timers + 'static,
 {
@@ -158,29 +168,31 @@ where
 
 /// Worker that runs thread-local and thread-safe actors and futurers, and
 /// holds and manages everything that is required to run them.
-pub(crate) struct Worker<T> {
+pub(crate) struct Worker<S, T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<local::RuntimeInternals<T>>,
+    internals: Rc<local::RuntimeInternals<S, T>>,
     // See Setup options with the same name for documentation.
     run_poll_ratio: usize,
     max_run_time: Duration,
 }
 
-impl<T> Worker<T>
+impl<S, T> Worker<S, T>
 where
+    S: Scheduler + 'static,
     T: Timers + 'static,
 {
     /// Set up a worker.
-    fn setup<FT>(
-        conf: Conf<FT>,
+    fn setup<FS, FT>(
+        conf: Conf<FS, FT>,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
-    ) -> Result<Worker<T>, Error>
+    ) -> Result<Worker<S, T>, Error>
     where
+        FS: FnOnce(a10::SubmissionQueue) -> S,
         FT: FnOnce() -> T,
     {
         #[rustfmt::skip]
-        let Conf { id, shared_internals, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time } = conf;
+        let Conf { id, shared_internals, create_scheduler, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time } = conf;
 
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
@@ -211,10 +223,12 @@ where
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
+        let sq = ring.sq();
         let internals = Rc::new(local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,
+            create_scheduler(sq),
             create_timers(),
             cpu_affinity,
             trace_log,
@@ -285,39 +299,41 @@ where
     fn run_local_process(&mut self) -> Option<Duration> {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
-            Some(mut process) => {
+            Some((mut process, waker)) => {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
                 log::debug!(worker_id = self.internals.id, pid, name; "running local process");
-                let waker = self
-                    .internals
-                    .scheduler
-                    .borrow()
-                    .waker_for_process(process.as_ref());
                 let mut ctx = task::Context::from_waker(&waker);
-                let result = process.as_mut().run(&mut ctx);
-                match result.result {
+                let stats = Pin::new(&mut process).run(&mut ctx);
+                match stats.result() {
                     task::Poll::Ready(()) => {
-                        if let Err(err) = self.internals.scheduler.borrow_mut().complete(process) {
+                        log::trace!(worker_id = self.internals.id, pid, name; "removing completed local process");
+                        if let Err(err) = self
+                            .internals
+                            .scheduler
+                            .borrow_mut()
+                            .complete_process(process)
+                        {
                             let msg = panic_message(&*err);
-                            log::warn!("panicked while dropping process: {msg}");
+                            log::warn!(worker_id = self.internals.id, pid, name; "panicked while dropping process: {msg}");
                         }
                     }
                     task::Poll::Pending => {
+                        log::trace!(worker_id = self.internals.id, pid, name; "adding back local process");
                         self.internals
                             .scheduler
                             .borrow_mut()
-                            .add_back_process(process);
+                            .add_back_process(process, stats);
                     }
                 }
                 trace::finish_rt(
                     self.internals.trace_log.borrow_mut().as_mut(),
                     timing,
                     "Running thread-local process",
-                    &[("id", &pid.0), ("name", &name)],
+                    &[("id", &pid.data()), ("name", &name)],
                 );
-                Some(result.elapsed)
+                Some(stats.elapsed())
             }
             None => None,
         }
@@ -338,22 +354,22 @@ where
                 log::debug!(worker_id = self.internals.id, pid, name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
-                let result = process.as_mut().run(&mut ctx);
-                match result.result {
+                let stats = process.as_mut().run(&mut ctx);
+                match stats.result() {
                     task::Poll::Ready(()) => {
                         self.internals.shared.complete(process);
                     }
                     task::Poll::Pending => {
-                        self.internals.shared.add_back_process(process);
+                        self.internals.shared.add_back_process(process, stats);
                     }
                 }
                 trace::finish_rt(
                     self.internals.trace_log.borrow_mut().as_mut(),
                     timing,
                     "Running thread-safe process",
-                    &[("id", &pid.0), ("name", &name)],
+                    &[("id", &pid.data()), ("name", &name)],
                 );
-                Some(result.elapsed)
+                Some(stats.elapsed())
             }
             None => None,
         }
@@ -362,7 +378,18 @@ where
     /// Returns `true` if there are processes in either the local or shared
     /// schedulers.
     fn has_user_process(&self) -> bool {
-        self.internals.scheduler.borrow().has_user_process() || self.internals.shared.has_process()
+        let local_scheduler = self.internals.scheduler.borrow();
+        if local_scheduler.has_process() {
+            let mut processes = local_scheduler.processes_ready();
+            if processes > SYSTEM_ACTORS {
+                return true;
+            }
+            processes += local_scheduler.processes_inactive();
+            if processes > SYSTEM_ACTORS {
+                return true;
+            }
+        }
+        self.internals.shared.has_process()
     }
 
     /// Schedule processes.
@@ -400,7 +427,7 @@ where
         let timing = trace::start(&*self.internals.trace_log.borrow());
         log::trace!(worker_id = self.internals.id; "scheduling thread-local processes");
 
-        let amount = self.internals.scheduler.borrow_mut().ready_processes();
+        let amount = self.internals.scheduler.borrow_mut().process_wakeups();
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -518,7 +545,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     }
 }
 
-impl<T> Drop for Worker<T> {
+impl<S, T> Drop for Worker<S, T> {
     fn drop(&mut self) {
         self.internals.shared.notify_worker_stop(self.internals.id);
     }

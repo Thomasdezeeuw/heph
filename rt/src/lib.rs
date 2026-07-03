@@ -186,8 +186,8 @@ pub use error::Error;
 use info::Info;
 use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
-use scheduler::process::FutureProcess;
 use setup::Setup;
+use setup::scheduler::FutureProcess;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.

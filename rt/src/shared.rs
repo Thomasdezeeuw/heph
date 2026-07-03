@@ -14,8 +14,8 @@ use heph::{ActorFutureBuilder, NewActor};
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
-use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
+use crate::setup::scheduler::{FutureProcess, ProcessId, RunStats};
 use crate::setup::timers::{SharedTimers, TimerToken};
 #[cfg(test)]
 use crate::spawn::options::Priority;
@@ -215,7 +215,7 @@ impl RuntimeInternals {
     #[cfg(test)]
     pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
     where
-        P: crate::scheduler::process::Run + Send + Sync + 'static,
+        P: crate::setup::scheduler::Process + Send + Sync + 'static,
     {
         self.scheduler.add_new_process(priority, Box::pin(process))
     }
@@ -241,8 +241,8 @@ impl RuntimeInternals {
     }
 
     /// See [`Scheduler::add_back_process`].
-    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
-        self.scheduler.add_back_process(process);
+    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>, stats: RunStats) {
+        self.scheduler.add_back_process(process, stats);
     }
 
     /// See [`Scheduler::complete`].

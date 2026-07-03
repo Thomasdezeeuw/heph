@@ -24,6 +24,8 @@ mod pipe;
 mod restart_supervisor;
 #[path = "functional/runtime.rs"]
 mod runtime;
+#[path = "functional/scheduler/mod.rs"]
+mod scheduler;
 #[path = "functional/spawn.rs"]
 mod spawn;
 #[path = "functional/sync_actor.rs"]
