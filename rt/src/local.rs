@@ -14,6 +14,8 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
+#[cfg(any(test, feature = "test"))]
+use crate::scheduler::LocalScheduler;
 use crate::setup::scheduler::{Process, ProcessId, Scheduler};
 use crate::setup::timers::{TimerToken, Timers};
 use crate::spawn::options::Priority;
@@ -172,16 +174,17 @@ where
 }
 
 #[cfg(any(test, feature = "test"))]
-impl RuntimeInternals<crate::scheduler::Scheduler, TimingWheel> {
+impl RuntimeInternals<LocalScheduler, TimingWheel> {
     pub(crate) fn new_test(
         shared_internals: Arc<shared::RuntimeInternals>,
-    ) -> RuntimeInternals<crate::scheduler::Scheduler, TimingWheel> {
+    ) -> RuntimeInternals<LocalScheduler, TimingWheel> {
         let ring = a10::Ring::new().unwrap();
+        let sq = ring.sq();
         RuntimeInternals::new(
             NonZeroUsize::new(1).unwrap(),
             shared_internals,
             ring,
-            crate::scheduler::Scheduler::new(),
+            LocalScheduler::new(sq),
             TimingWheel::new(),
             None,
             None,

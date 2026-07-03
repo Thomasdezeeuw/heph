@@ -22,7 +22,7 @@ use crate::{Error, Runtime, coordinator, shared, worker};
 pub mod scheduler;
 pub mod timers;
 
-use scheduler::{Cfs, DefaultScheduler, Scheduler};
+use scheduler::{Cfs, DefaultScheduler, LocalScheduler, Scheduler};
 use timers::{DefaultTimers, Timers};
 
 /// Setup a [`Runtime`].
@@ -62,7 +62,7 @@ impl Setup {
         Setup {
             name: None,
             threads: 1,
-            create_scheduler: crate::scheduler::Scheduler::<Cfs>::new,
+            create_scheduler: LocalScheduler::<Cfs>::new,
             create_timers: timers::TimingWheel::new,
             auto_cpu_affinity: false,
             run_poll_ratio: 32,

@@ -1,4 +1,4 @@
-//! Scheduler implementations.
+//! Default scheduler implementations.
 
 use std::collections::BinaryHeap;
 use std::mem::{self, replace, size_of};
@@ -8,7 +8,9 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fmt, iter, ptr, task, thread};
 
-use crate::setup::scheduler::{self, Cfs, ProcessId, RunStats, Schedule};
+use crate::setup::scheduler::{
+    self, Cfs, ProcessId, RunStats, Schedule, Scheduler, SchedulerProcess,
+};
 use crate::spawn::options::Priority;
 
 pub(crate) mod process;
@@ -18,20 +20,24 @@ mod tests;
 
 type Process<S> = process::Process<S, dyn scheduler::Process>;
 
+/// Local scheduler.
+///
+/// Holds all local processes for a single worker, schedules them using the
+/// [`Schedule`] implementation `S` defaulting to [`Cfs`].
 #[derive(Debug)]
-pub(crate) struct Scheduler<S: Schedule = Cfs> {
+pub(crate) struct LocalScheduler<S: Schedule = Cfs> {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<Process<S>>>>,
     /// Processes that are not ready to run.
     inactive: Vec<Processes<S>>,
 }
 
-impl<S: Schedule> Scheduler<S> {
-    /// Create a new `Scheduler`.
-    pub(crate) fn new(sq: a10::SubmissionQueue) -> Scheduler<S> {
+impl<S: Schedule> LocalScheduler<S> {
+    /// Create a new local scheduler.
+    pub fn new(sq: a10::SubmissionQueue) -> LocalScheduler<S> {
         let mut inactive = Vec::with_capacity(8);
         inactive.push(Processes::new(sq));
-        Scheduler {
+        LocalScheduler {
             ready: BinaryHeap::with_capacity(8),
             inactive,
         }
@@ -72,7 +78,7 @@ impl<S: Schedule> Scheduler<S> {
     }
 }
 
-impl<S: Schedule + fmt::Debug> scheduler::Scheduler for Scheduler<S> {
+impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
     type Process = Pin<Box<Process<S>>>;
 
     fn next_process(&mut self) -> Option<(Self::Process, task::Waker)> {
@@ -149,8 +155,8 @@ impl<S: Schedule + fmt::Debug> scheduler::Scheduler for Scheduler<S> {
     }
 }
 
-/// Create a pid from the `offset` in `Scheduler::inactive` and the `idx` into
-/// `Process:processes` (and `Processes:bitmap`).
+/// Create a pid from the `offset` in `LocalScheduler::inactive` and the `idx`
+/// into `Process:processes` (and `Processes:bitmap`).
 fn pid(offset: usize, idx: u16) -> ProcessId {
     ProcessId::new(offset << GROUP_SHIFT | idx as usize)
 }
