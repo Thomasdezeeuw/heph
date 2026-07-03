@@ -13,7 +13,7 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
 use crate::scheduler::{Cfs, LocalScheduler, Process, process};
-use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, Scheduler, SchedulerProcess, Task};
+use crate::setup::scheduler::{FutureTask, Process as _, ProcessId, RunStats, Scheduler, Task};
 use crate::spawn::options::Priority;
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::{Access, ThreadLocal};

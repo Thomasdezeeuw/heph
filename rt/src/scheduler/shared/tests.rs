@@ -11,7 +11,7 @@ use heph::supervisor::NoSupervisor;
 
 use crate::ThreadSafe;
 use crate::scheduler::shared::{Priority, Process, Scheduler};
-use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, SchedulerProcess};
+use crate::setup::scheduler::{FutureTask, Process as _, ProcessId, RunStats};
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]

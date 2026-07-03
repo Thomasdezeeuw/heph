@@ -8,9 +8,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fmt, iter, ptr, task, thread};
 
-use crate::setup::scheduler::{
-    Cfs, ProcessId, RunStats, Schedule, Scheduler, SchedulerProcess, Task,
-};
+use crate::setup::scheduler::{Cfs, Process as _, ProcessId, RunStats, Schedule, Scheduler, Task};
 use crate::spawn::options::Priority;
 
 pub(crate) mod process;

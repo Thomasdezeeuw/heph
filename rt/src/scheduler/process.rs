@@ -52,7 +52,7 @@ impl<S: Schedule, T: Task + ?Sized> Task for Process<S, T> {
     }
 }
 
-impl<S: Schedule, T: Task + ?Sized> crate::setup::scheduler::SchedulerProcess for Process<S, T> {
+impl<S: Schedule, T: Task + ?Sized> crate::setup::scheduler::Process for Process<S, T> {
     fn id(&self) -> ProcessId {
         self.id
     }

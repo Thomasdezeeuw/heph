@@ -13,7 +13,7 @@
 //!    order processes.
 //!  * [`Task`] represents an asynchronous task which can be added to the
 //!    `Scheduler`.
-//!  * [`SchedulerProcess`] represents a process within the context of a
+//!  * [`Process`] represents a task and metadata within the context of a
 //!    `Scheduler` that can be run.
 //!
 //! See the documentation on the trait themselves for more information.
@@ -43,7 +43,7 @@ pub use crate::scheduler::LocalScheduler;
 /// defined scheduling implementation.
 pub trait Scheduler: fmt::Debug {
     /// Process that is ready to run.
-    type Process: SchedulerProcess + Unpin;
+    type Process: Process + Unpin;
 
     /// Returns the next process that is ready to run, if any, as well as waker
     /// for it.
@@ -272,7 +272,7 @@ where
 }
 
 /// Process that is part of a [`Scheduler`].
-pub trait SchedulerProcess: Task {
+pub trait Process: Task {
     /// Id of the process.
     fn id(&self) -> ProcessId;
 
@@ -309,18 +309,18 @@ pub trait SchedulerProcess: Task {
     }
 }
 
-impl<T> SchedulerProcess for Pin<T>
+impl<T> Process for Pin<T>
 where
-    T: std::ops::DerefMut<Target: SchedulerProcess>, // NOTE: DerefMut is required for Future impl.
+    T: std::ops::DerefMut<Target: Process>, // NOTE: DerefMut is required for Future impl.
 {
     fn id(&self) -> ProcessId {
         (&**self).id()
     }
 }
 
-impl<T> SchedulerProcess for Box<T>
+impl<T> Process for Box<T>
 where
-    T: SchedulerProcess + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+    T: Process + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
 {
     fn id(&self) -> ProcessId {
         (&**self).id()
