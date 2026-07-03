@@ -23,7 +23,7 @@ type Process<S> = process::Process<S, dyn Task>;
 /// Holds all local processes for a single worker, schedules them using the
 /// [`Schedule`] implementation `S` defaulting to [`Cfs`].
 #[derive(Debug)]
-pub struct LocalScheduler<S: Schedule = Cfs> {
+pub struct LocalScheduler<S = Cfs> {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<Process<S>>>>,
     /// Processes that are not ready to run.
