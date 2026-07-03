@@ -7,6 +7,7 @@
 //! Along with various settings, such as the number of worker threads and the
 //! application name, Heph also allows for large components of the runtime to
 //! be implemented externally via traits. These include:
+//!  * The scheduling implementation, found in the [`scheduler`] module.
 //!  * The implementations backing timers, found in the [`timers`] module.
 
 use std::num::NonZeroUsize;
