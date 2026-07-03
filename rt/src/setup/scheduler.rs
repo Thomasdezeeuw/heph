@@ -233,10 +233,20 @@ where
 
 /// Wrapper around a [`Future`] to implement [`Task`].
 ///
-/// NOTE: this type only exists because we can add a default implementation for
-/// Fut where Fut: Future, and have a separate one for ActorFuture. Once that
-/// kind of specialisation is possible this type can be remove.
-pub(crate) struct FutureTask<Fut>(pub(crate) Fut);
+/// # Notes
+///
+/// This type only exists because we can not add a default implementation for
+/// `Fut where Fut: Future`, and have a separate one for `ActorFuture`. Once
+/// that kind of specialisation is possible this type can be removed.
+#[derive(Debug)]
+pub struct FutureTask<Fut>(pub(crate) Fut);
+
+impl<Fut> FutureTask<Fut> {
+    /// Create a new future task.
+    pub const fn new(future: Fut) -> FutureTask<Fut> {
+        FutureTask(future)
+    }
+}
 
 impl<Fut> Task for FutureTask<Fut>
 where
