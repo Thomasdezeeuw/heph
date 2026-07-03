@@ -41,7 +41,7 @@ use crate::spawn::options::Priority;
 /// defined scheduling implementation.
 pub trait Scheduler: fmt::Debug {
     /// Process that is ready to run.
-    type Process: SchedulerProcess;
+    type Process: SchedulerProcess + Unpin;
 
     /// Returns the next process that is ready to run, if any, as well as waker
     /// for it.
