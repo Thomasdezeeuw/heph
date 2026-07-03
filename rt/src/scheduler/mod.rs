@@ -105,10 +105,15 @@ impl<S: Schedule + fmt::Debug> scheduler::Scheduler for Scheduler<S> {
     where
         P: scheduler::Process + 'static,
     {
+        self.add_boxed_process(priority, Box::pin(process))
+    }
+
+    fn add_boxed_process(
+        &mut self,
+        priority: Priority,
+        process: Pin<Box<dyn scheduler::Process>>,
+    ) -> ProcessId {
         let pid = self.reserve_slot();
-        // FIXME: are we double boxing when called with `P = Box<dyn Process>`
-        // here?
-        let process: Pin<Box<dyn scheduler::Process>> = Box::pin(process);
         let process = Box::pin(Process::<S>::new(pid, priority, process));
         self.ready.push(process);
         pid

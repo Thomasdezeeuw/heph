@@ -85,10 +85,26 @@ pub trait Scheduler: fmt::Debug {
         catch_unwind(AssertUnwindSafe(|| drop(process)))
     }
 
+    // TODO: Currently LocalRuntimeData::add_local_process uses `Pin<Box<dyn
+    // Process>>` as process. See if this can be changed (hard to do with dyn
+    // traits). Otherwise maybe change it here? For now add_boxed_process is
+    // used as a work around to not allocate twice in the scheduler.
+
     /// Add a new process to the scheduler.
     fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
     where
         P: Process + 'static;
+
+    /// Specialisation for adding boxed processes. Aiming to get rid of the box
+    /// and this method.
+    #[doc(hidden)]
+    fn add_boxed_process(
+        &mut self,
+        priority: Priority,
+        process: Pin<Box<dyn Process>>,
+    ) -> ProcessId {
+        self.add_process(priority, process)
+    }
 
     /// Mark all processes that are awoken as ready.
     ///

@@ -270,7 +270,9 @@ where
     }
 
     fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId {
-        self.scheduler.borrow_mut().add_process(priority, process)
+        self.scheduler
+            .borrow_mut()
+            .add_boxed_process(priority, process)
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
