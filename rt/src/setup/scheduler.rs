@@ -123,7 +123,6 @@ pub trait Scheduler: fmt::Debug {
     fn processes_inactive(&self) -> usize;
 
     /// Returns true if the scheduler has any processes (in any state).
-    // TODO: how to deal with system processes for user implementations?
     fn has_process(&self) -> bool {
         self.has_ready_process() || self.processes_inactive() >= 1
     }
