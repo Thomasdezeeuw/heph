@@ -253,8 +253,8 @@ where
     Fut: Future<Output = ()>,
 {
     fn name(&self) -> &'static str {
-        // TODO: improve this using `heph::actor::name::<Fut>()`.
-        "FutureTask"
+        // Works for actor, so it should work for regular futures as well.
+        heph::actor::name::<Fut>()
     }
 }
 
