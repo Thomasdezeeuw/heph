@@ -16,6 +16,7 @@
 //! [started]: WorkerSetup::start
 
 use std::num::NonZeroUsize;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -27,7 +28,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::setup::scheduler::{Scheduler, SchedulerProcess};
+use crate::setup::scheduler::{Process, Scheduler, SchedulerProcess};
 use crate::setup::timers::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
@@ -38,9 +39,10 @@ use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, process, shared,
 const SYSTEM_ACTORS: usize = 2;
 
 /// Configuratiob of a [`Worker`].
-pub(crate) struct Conf<FT> {
+pub(crate) struct Conf<FS, FT> {
     pub(crate) id: NonZeroUsize,
     pub(crate) shared_internals: Arc<shared::RuntimeInternals>,
+    pub(crate) create_scheduler: FS,
     pub(crate) create_timers: FT,
     pub(crate) auto_cpu_affinity: bool,
     pub(crate) run_poll_ratio: usize,
@@ -48,8 +50,10 @@ pub(crate) struct Conf<FT> {
 }
 
 /// Spawn a new worker thread.
-pub(crate) fn spawn_thread<FT, T>(conf: Conf<FT>) -> io::Result<Spawned>
+pub(crate) fn spawn_thread<FS, S, FT, T>(conf: Conf<FS, FT>) -> io::Result<Spawned>
 where
+    FS: FnOnce(a10::SubmissionQueue) -> S + Send + 'static,
+    S: Scheduler + 'static,
     FT: FnOnce() -> T + Send + 'static,
     T: Timers + 'static,
 {
@@ -138,8 +142,13 @@ impl Handle {
 }
 
 /// Main function of a worker thread.
-fn main<FT, T>(conf: Conf<FT>, init: Arc<OnceLock<ActorRef<Control>>>) -> Result<(), Error>
+fn main<FS, S, FT, T>(
+    conf: Conf<FS, FT>,
+    init: Arc<OnceLock<ActorRef<Control>>>,
+) -> Result<(), Error>
 where
+    FS: FnOnce(a10::SubmissionQueue) -> S,
+    S: Scheduler + 'static,
     FT: FnOnce() -> T,
     T: Timers + 'static,
 {
@@ -159,29 +168,31 @@ where
 
 /// Worker that runs thread-local and thread-safe actors and futurers, and
 /// holds and manages everything that is required to run them.
-pub(crate) struct Worker<T> {
+pub(crate) struct Worker<S, T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<local::RuntimeInternals<T>>,
+    internals: Rc<local::RuntimeInternals<S, T>>,
     // See Setup options with the same name for documentation.
     run_poll_ratio: usize,
     max_run_time: Duration,
 }
 
-impl<T> Worker<T>
+impl<S, T> Worker<S, T>
 where
+    S: Scheduler + 'static,
     T: Timers + 'static,
 {
     /// Set up a worker.
-    fn setup<FT>(
-        conf: Conf<FT>,
+    fn setup<FS, FT>(
+        conf: Conf<FS, FT>,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
-    ) -> Result<Worker<T>, Error>
+    ) -> Result<Worker<S, T>, Error>
     where
+        FS: FnOnce(a10::SubmissionQueue) -> S,
         FT: FnOnce() -> T,
     {
         #[rustfmt::skip]
-        let Conf { id, shared_internals, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time } = conf;
+        let Conf { id, shared_internals, create_scheduler, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time } = conf;
 
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
@@ -212,10 +223,12 @@ where
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
+        let sq = ring.sq();
         let internals = Rc::new(local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,
+            create_scheduler(sq),
             create_timers(),
             cpu_affinity,
             trace_log,
@@ -532,7 +545,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     }
 }
 
-impl<T> Drop for Worker<T> {
+impl<S, T> Drop for Worker<S, T> {
     fn drop(&mut self) {
         self.internals.shared.notify_worker_stop(self.internals.id);
     }

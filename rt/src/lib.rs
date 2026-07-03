@@ -223,6 +223,7 @@ impl Runtime {
     /// Setup a new `Runtime`.
     ///
     /// See [`Setup`] for the available configuration options.
+    #[allow(private_interfaces)] // TODO: remove once the scheduler type is public.
     pub const fn setup() -> Setup {
         Setup::new()
     }

@@ -131,6 +131,9 @@ pub trait Scheduler: fmt::Debug {
     }
 }
 
+/// Default scheduler.
+pub(crate) type DefaultScheduler = fn(a10::SubmissionQueue) -> crate::scheduler::Scheduler<Cfs>;
+
 /// Scheduling implementation.
 ///
 /// The [`Scheduler`] trait defines the scheduler itself, i.e. it's data
