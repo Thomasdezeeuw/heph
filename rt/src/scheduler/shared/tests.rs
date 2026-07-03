@@ -11,7 +11,7 @@ use heph::supervisor::NoSupervisor;
 
 use crate::ThreadSafe;
 use crate::scheduler::shared::{Priority, Process, Scheduler};
-use crate::setup::scheduler::{FutureProcess, ProcessId, RunStats, SchedulerProcess};
+use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, SchedulerProcess};
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]
@@ -111,12 +111,12 @@ fn scheduler_run_order() {
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
         let rt = ThreadSafe::new(test::shared_internals());
-        let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
+        let (task, _) = ActorFutureBuilder::new().with_rt(rt).build(
             NoSupervisor,
             new_actor,
             (id, run_order.clone()),
         );
-        let pid = scheduler.add_new_process(*priority, Box::pin(process));
+        let pid = scheduler.add_new_task(*priority, Box::pin(task));
         pids.push(pid);
     }
 
@@ -140,12 +140,12 @@ fn assert_actor_process_unmoved() {
     let mut ctx = task::Context::from_waker(&waker);
 
     let rt = ThreadSafe::new(test::shared_internals());
-    let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
+    let (task, _) = ActorFutureBuilder::new().with_rt(rt).build(
         NoSupervisor,
         TestAssertUnmovedNewActor::new(),
         (),
     );
-    let pid = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
+    let pid = scheduler.add_new_task(Priority::NORMAL, Box::pin(task));
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
@@ -172,8 +172,8 @@ fn assert_future_process_unmoved() {
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let process = FutureProcess(AssertUnmoved::new(pending()));
-    let pid = scheduler.add_new_process(Priority::NORMAL, Box::pin(process));
+    let task = FutureTask(AssertUnmoved::new(pending()));
+    let pid = scheduler.add_new_task(Priority::NORMAL, Box::pin(task));
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
@@ -197,8 +197,8 @@ fn assert_future_process_unmoved() {
 fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
     let new_actor = actor_fn(simple_actor);
     let rt = ThreadSafe::new(test::shared_internals());
-    let (process, _) = ActorFutureBuilder::new()
+    let (task, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    scheduler.add_new_process(priority, Box::pin(process))
+    scheduler.add_new_task(priority, Box::pin(task))
 }

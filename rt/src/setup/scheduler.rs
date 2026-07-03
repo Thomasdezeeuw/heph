@@ -11,7 +11,7 @@
 //!    processes.
 //!  * [`Schedule`] can optionally used by a `Scheduler` to determine how to
 //!    order processes.
-//!  * [`Process`] represents a single process which can be added to the
+//!  * [`Task`] represents an asynchronous task which can be added to the
 //!    `Scheduler`.
 //!  * [`SchedulerProcess`] represents a process within the context of a
 //!    `Scheduler` that can be run.
@@ -92,20 +92,16 @@ pub trait Scheduler: fmt::Debug {
     // traits). Otherwise maybe change it here? For now add_boxed_process is
     // used as a work around to not allocate twice in the scheduler.
 
-    /// Add a new process to the scheduler.
-    fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
+    /// Add a new task to the scheduler.
+    fn add_task<T>(&mut self, priority: Priority, task: T) -> ProcessId
     where
-        P: Process + 'static;
+        T: Task + 'static;
 
     /// Specialisation for adding boxed processes. Aiming to get rid of the box
     /// and this method.
     #[doc(hidden)]
-    fn add_boxed_process(
-        &mut self,
-        priority: Priority,
-        process: Pin<Box<dyn Process>>,
-    ) -> ProcessId {
-        self.add_process(priority, process)
+    fn add_boxed_task(&mut self, priority: Priority, task: Pin<Box<dyn Task>>) -> ProcessId {
+        self.add_task(priority, task)
     }
 
     /// Mark all processes that are awoken as ready.
@@ -208,51 +204,51 @@ impl Cfs {
     }
 }
 
-/// Pollable process.
+/// Pollable task.
 ///
-/// A process that can be added to a [`Scheduler`], see
-/// [`Scheduler::add_process`].
-pub trait Process: Future<Output = ()> {
-    /// Return the name of this process.
+/// An asynchronous task that can be added to a [`Scheduler`], see
+/// [`Scheduler::add_task`].
+pub trait Task: Future<Output = ()> {
+    /// Return the name of this task.
     fn name(&self) -> &'static str;
 }
 
-impl<T> Process for Pin<T>
+impl<T> Task for Pin<T>
 where
-    T: std::ops::DerefMut<Target: Process>, // NOTE: DerefMut is required for Future impl.
+    T: std::ops::DerefMut<Target: Task>, // NOTE: DerefMut is required for Future impl.
 {
     fn name(&self) -> &'static str {
         (&**self).name()
     }
 }
 
-impl<T> Process for Box<T>
+impl<T> Task for Box<T>
 where
-    T: Process + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
+    T: Task + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
 {
     fn name(&self) -> &'static str {
         (&**self).name()
     }
 }
 
-/// Wrapper around a [`Future`] to implement [`Process`].
+/// Wrapper around a [`Future`] to implement [`Task`].
 ///
 /// NOTE: this type only exists because we can add a default implementation for
 /// Fut where Fut: Future, and have a separate one for ActorFuture. Once that
 /// kind of specialisation is possible this type can be remove.
-pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
+pub(crate) struct FutureTask<Fut>(pub(crate) Fut);
 
-impl<Fut> Process for FutureProcess<Fut>
+impl<Fut> Task for FutureTask<Fut>
 where
     Fut: Future<Output = ()>,
 {
     fn name(&self) -> &'static str {
         // TODO: improve this using `heph::actor::name::<Fut>()`.
-        "FutureProcess"
+        "FutureTask"
     }
 }
 
-impl<Fut> Future for FutureProcess<Fut>
+impl<Fut> Future for FutureTask<Fut>
 where
     Fut: Future<Output = ()>,
 {
@@ -264,7 +260,7 @@ where
     }
 }
 
-impl<S, NA> Process for ActorFuture<S, NA>
+impl<S, NA> Task for ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
@@ -276,7 +272,7 @@ where
 }
 
 /// Process that is part of a [`Scheduler`].
-pub trait SchedulerProcess: Process {
+pub trait SchedulerProcess: Task {
     /// Id of the process.
     fn id(&self) -> ProcessId;
 

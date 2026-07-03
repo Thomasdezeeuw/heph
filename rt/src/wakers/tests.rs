@@ -6,7 +6,7 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::setup::scheduler::{Process, ProcessId, RunStats};
+    use crate::setup::scheduler::{ProcessId, RunStats, Task};
     use crate::shared;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
@@ -14,9 +14,9 @@ mod shared {
     const PID1: ProcessId = ProcessId::new(1);
     const PID2: ProcessId = ProcessId::new(2);
 
-    pub(super) struct TestProcess;
+    pub(super) struct TestTask;
 
-    impl Future for TestProcess {
+    impl Future for TestTask {
         type Output = ();
 
         fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
@@ -24,9 +24,9 @@ mod shared {
         }
     }
 
-    impl Process for TestProcess {
+    impl Task for TestTask {
         fn name(&self) -> &'static str {
-            "TestProcess"
+            "TestTask"
         }
     }
 
@@ -34,7 +34,7 @@ mod shared {
     fn waker() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
+        let pid = shared_internals.add_new_task(Priority::NORMAL, TestTask);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -66,7 +66,7 @@ mod shared {
         let shared_internals = new_internals();
 
         // Add a test process.
-        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
+        let pid = shared_internals.add_new_task(Priority::NORMAL, TestTask);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -91,7 +91,7 @@ mod shared {
     fn wake_from_different_thread() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
+        let pid = shared_internals.add_new_task(Priority::NORMAL, TestTask);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();

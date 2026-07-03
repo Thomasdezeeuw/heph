@@ -28,7 +28,7 @@ use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
-use crate::setup::scheduler::{Process, Scheduler, SchedulerProcess};
+use crate::setup::scheduler::{Scheduler, SchedulerProcess, Task};
 use crate::setup::timers::Timers;
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;

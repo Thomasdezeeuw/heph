@@ -5,7 +5,7 @@ use std::pin::Pin;
 use log::trace;
 
 use crate::scheduler::{Cfs, process};
-use crate::setup::scheduler::{self, ProcessId, RunStats};
+use crate::setup::scheduler::{ProcessId, RunStats, Task};
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -16,7 +16,7 @@ mod tests;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
-pub(crate) type Process = process::Process<Cfs, dyn scheduler::Process + Send + Sync>;
+pub(crate) type Process = process::Process<Cfs, dyn Task + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.
@@ -128,12 +128,12 @@ impl Scheduler {
     }
 
     /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process(
+    pub(crate) fn add_new_task(
         &self,
         priority: Priority,
-        process: Pin<Box<dyn scheduler::Process + Send + Sync>>,
+        task: Pin<Box<dyn Task + Send + Sync>>,
     ) -> ProcessId {
-        let mut process = Box::pin(Process::new(ProcessId::new(0), priority, process));
+        let mut process = Box::pin(Process::new(ProcessId::new(0), priority, task));
         Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);

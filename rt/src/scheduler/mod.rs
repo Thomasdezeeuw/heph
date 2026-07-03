@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fmt, iter, ptr, task, thread};
 
 use crate::setup::scheduler::{
-    self, Cfs, ProcessId, RunStats, Schedule, Scheduler, SchedulerProcess,
+    Cfs, ProcessId, RunStats, Schedule, Scheduler, SchedulerProcess, Task,
 };
 use crate::spawn::options::Priority;
 
@@ -18,7 +18,7 @@ pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
-type Process<S> = process::Process<S, dyn scheduler::Process>;
+type Process<S> = process::Process<S, dyn Task>;
 
 /// Local scheduler.
 ///
@@ -107,20 +107,16 @@ impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
         catch_unwind(AssertUnwindSafe(move || drop(process)))
     }
 
-    fn add_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
+    fn add_task<T>(&mut self, priority: Priority, task: T) -> ProcessId
     where
-        P: scheduler::Process + 'static,
+        T: Task + 'static,
     {
-        self.add_boxed_process(priority, Box::pin(process))
+        self.add_boxed_task(priority, Box::pin(task))
     }
 
-    fn add_boxed_process(
-        &mut self,
-        priority: Priority,
-        process: Pin<Box<dyn scheduler::Process>>,
-    ) -> ProcessId {
+    fn add_boxed_task(&mut self, priority: Priority, task: Pin<Box<dyn Task>>) -> ProcessId {
         let pid = self.reserve_slot();
-        let process = Box::pin(Process::<S>::new(pid, priority, process));
+        let process = Box::pin(Process::<S>::new(pid, priority, task));
         self.ready.push(process);
         pid
     }

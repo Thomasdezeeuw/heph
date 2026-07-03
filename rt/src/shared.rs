@@ -15,7 +15,7 @@ use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
 use crate::scheduler::shared::{Process, Scheduler};
-use crate::setup::scheduler::{FutureProcess, ProcessId, RunStats};
+use crate::setup::scheduler::{FutureTask, ProcessId, RunStats};
 use crate::setup::timers::{SharedTimers, TimerToken};
 #[cfg(test)]
 use crate::spawn::options::Priority;
@@ -186,13 +186,13 @@ impl RuntimeInternals {
         NA::Message: Send,
     {
         let rt = ThreadSafe::new(self.clone());
-        let (process, actor_ref) = ActorFutureBuilder::new()
+        let (task, actor_ref) = ActorFutureBuilder::new()
             .with_rt(rt)
             .with_inbox_size(options.inbox_size())
             .try_build(supervisor, new_actor, arg)?;
         let pid = self
             .scheduler
-            .add_new_process(options.priority(), Box::pin(process));
+            .add_new_task(options.priority(), Box::pin(task));
         let name = NA::name();
         log::debug!(pid, name; "spawned thread-safe actor");
         Ok(actor_ref)
@@ -204,20 +204,20 @@ impl RuntimeInternals {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        let process = FutureProcess(future);
+        let task = FutureTask(future);
         let pid = self
             .scheduler
-            .add_new_process(options.priority(), Box::pin(process));
+            .add_new_task(options.priority(), Box::pin(task));
         log::debug!(pid; "spawned thread-safe future");
     }
 
-    /// Add a new proces to the scheduler.
+    /// Add a new task to the scheduler.
     #[cfg(test)]
-    pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
+    pub(crate) fn add_new_task<T>(&self, priority: Priority, task: T) -> ProcessId
     where
-        P: crate::setup::scheduler::Process + Send + Sync + 'static,
+        T: crate::setup::scheduler::Task + Send + Sync + 'static,
     {
-        self.scheduler.add_new_process(priority, Box::pin(process))
+        self.scheduler.add_new_task(priority, Box::pin(task))
     }
 
     /// See [`Scheduler::mark_ready`].

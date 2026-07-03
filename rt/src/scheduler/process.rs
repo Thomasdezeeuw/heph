@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, ptr};
 
-use crate::scheduler::{Priority, RunStats, Schedule};
+use crate::scheduler::{Priority, RunStats, Schedule, Task};
 use crate::setup::scheduler::ProcessId;
 
 /// Process container.
@@ -19,20 +19,19 @@ use crate::setup::scheduler::ProcessId;
 /// (`ProcessId`).
 ///
 /// `PartialOrd` and `Ord` however are implemented using `S::order`.
-pub struct Process<S, P: ?Sized> {
+pub struct Process<S, T: ?Sized> {
     id: ProcessId,
     scheduler_data: S,
-    #[allow(clippy::struct_field_names)]
-    process: Pin<Box<P>>,
+    task: Pin<Box<T>>,
 }
 
-impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> Process<S, P> {
+impl<S: Schedule, T: Task + ?Sized> Process<S, T> {
     /// Create a new process container.
-    pub(crate) fn new(id: ProcessId, priority: Priority, process: Pin<Box<P>>) -> Process<S, P> {
+    pub(crate) fn new(id: ProcessId, priority: Priority, task: Pin<Box<T>>) -> Process<S, T> {
         Process {
             id,
             scheduler_data: S::new(priority),
-            process,
+            task,
         }
     }
 
@@ -47,32 +46,28 @@ impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> Process<S, P> {
     }
 }
 
-impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> crate::setup::scheduler::Process
-    for Process<S, P>
-{
+impl<S: Schedule, T: Task + ?Sized> Task for Process<S, T> {
     fn name(&self) -> &'static str {
-        self.process.name()
+        self.task.name()
     }
 }
 
-impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized>
-    crate::setup::scheduler::SchedulerProcess for Process<S, P>
-{
+impl<S: Schedule, T: Task + ?Sized> crate::setup::scheduler::SchedulerProcess for Process<S, T> {
     fn id(&self) -> ProcessId {
         self.id
     }
 }
 
-impl<S: Schedule, P: crate::setup::scheduler::Process + ?Sized> Future for Process<S, P> {
+impl<S: Schedule, T: Task + ?Sized> Future for Process<S, T> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
         // SAFETY: not moving the future.
-        unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.process) }.poll(ctx)
+        unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.task) }.poll(ctx)
     }
 }
 
-impl<S, P: ?Sized> Process<S, P> {
+impl<S, T: ?Sized> Process<S, T> {
     /// Returns the process identifier, or pid for short.
     pub(crate) fn id(&self) -> ProcessId {
         self.id
@@ -84,35 +79,35 @@ impl<S, P: ?Sized> Process<S, P> {
     }
 }
 
-impl<S, P: crate::setup::scheduler::Process + ?Sized> Process<S, P> {
+impl<S, T: Task + ?Sized> Process<S, T> {
     /// Returns the name of the process.
     pub(crate) fn name(&self) -> &'static str {
-        self.process.name()
+        self.task.name()
     }
 }
 
-impl<S, P: ?Sized> Eq for Process<S, P> {}
+impl<S, T: ?Sized> Eq for Process<S, T> {}
 
-impl<S, P: ?Sized> PartialEq for Process<S, P> {
+impl<S, T: ?Sized> PartialEq for Process<S, T> {
     fn eq(&self, other: &Self) -> bool {
         self.id() == other.id()
     }
 }
 
-impl<S: Schedule, P: ?Sized> Ord for Process<S, P> {
+impl<S: Schedule, T: ?Sized> Ord for Process<S, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         S::order(&self.scheduler_data, &other.scheduler_data)
     }
 }
 
-impl<S: Schedule, P: ?Sized> PartialOrd for Process<S, P> {
+impl<S: Schedule, T: ?Sized> PartialOrd for Process<S, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 #[allow(clippy::missing_fields_in_debug)]
-impl<S: fmt::Debug, P: crate::setup::scheduler::Process + ?Sized> fmt::Debug for Process<S, P> {
+impl<S: fmt::Debug, T: Task + ?Sized> fmt::Debug for Process<S, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
             .field("id", &self.id())

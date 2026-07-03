@@ -16,7 +16,7 @@ use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
 #[cfg(any(test, feature = "test"))]
 use crate::scheduler::LocalScheduler;
-use crate::setup::scheduler::{Process, ProcessId, Scheduler};
+use crate::setup::scheduler::{ProcessId, Scheduler, Task};
 use crate::setup::timers::{TimerToken, Timers};
 use crate::spawn::options::Priority;
 #[cfg(any(test, feature = "test"))]
@@ -46,7 +46,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     fn add_local_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_local_timer(&self, deadline: Instant, token: TimerToken);
 
-    fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId;
+    fn add_local_task(&self, priority: Priority, task: Pin<Box<dyn Task>>) -> ProcessId;
 
     fn start_trace(&self) -> Option<trace::EventTiming>;
     fn finish_trace(
@@ -274,10 +274,8 @@ where
         self.timers.borrow_mut().remove(deadline, token);
     }
 
-    fn add_local_process(&self, priority: Priority, process: Pin<Box<dyn Process>>) -> ProcessId {
-        self.scheduler
-            .borrow_mut()
-            .add_boxed_process(priority, process)
+    fn add_local_task(&self, priority: Priority, task: Pin<Box<dyn Task>>) -> ProcessId {
+        self.scheduler.borrow_mut().add_boxed_task(priority, task)
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {

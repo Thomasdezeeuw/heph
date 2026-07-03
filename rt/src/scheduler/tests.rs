@@ -13,9 +13,7 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
 use crate::scheduler::{Cfs, LocalScheduler, Process, process};
-use crate::setup::scheduler::{
-    self, FutureProcess, ProcessId, RunStats, Scheduler, SchedulerProcess,
-};
+use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, Scheduler, SchedulerProcess, Task};
 use crate::spawn::options::Priority;
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::{Access, ThreadLocal};
@@ -23,20 +21,20 @@ use crate::{Access, ThreadLocal};
 #[test]
 fn size_assertions() {
     assert_size::<Priority>(1);
-    assert_size::<process::Process<Cfs, Box<dyn scheduler::Process>>>(40);
+    assert_size::<process::Process<Cfs, Box<dyn Task>>>(40);
     assert_size::<Process<Cfs>>(48);
 }
 
 #[derive(Debug)]
-struct NopTestProcess;
+struct NopTestTask;
 
-impl scheduler::Process for NopTestProcess {
+impl Task for NopTestTask {
     fn name(&self) -> &'static str {
-        "NopTestProcess"
+        "NopTestTask"
     }
 }
 
-impl Future for NopTestProcess {
+impl Future for NopTestTask {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
@@ -47,14 +45,10 @@ impl Future for NopTestProcess {
 #[test]
 #[allow(clippy::eq_op)] // Need to compare `Process` to itself.
 fn process_data_equality() {
-    let process1 = Process::<Cfs>::new(ProcessId::new(0), Priority::LOW, Box::pin(NopTestProcess));
-    let process2 = Process::<Cfs>::new(
-        ProcessId::new(1),
-        Priority::NORMAL,
-        Box::pin(NopTestProcess),
-    );
-    let process3 = Process::<Cfs>::new(ProcessId::new(2), Priority::HIGH, Box::pin(NopTestProcess));
-    let process4 = Process::<Cfs>::new(ProcessId::new(3), Priority::LOW, Box::pin(NopTestProcess));
+    let process1 = Process::<Cfs>::new(ProcessId::new(0), Priority::LOW, Box::pin(NopTestTask));
+    let process2 = Process::<Cfs>::new(ProcessId::new(1), Priority::NORMAL, Box::pin(NopTestTask));
+    let process3 = Process::<Cfs>::new(ProcessId::new(2), Priority::HIGH, Box::pin(NopTestTask));
+    let process4 = Process::<Cfs>::new(ProcessId::new(3), Priority::LOW, Box::pin(NopTestTask));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -79,15 +73,15 @@ fn process_data_equality() {
 }
 
 #[derive(Debug)]
-struct SleepyProcess(Duration);
+struct SleepyTask(Duration);
 
-impl scheduler::Process for SleepyProcess {
+impl Task for SleepyTask {
     fn name(&self) -> &'static str {
-        "SleepyProcess"
+        "SleepyTask"
     }
 }
 
-impl Future for SleepyProcess {
+impl Future for SleepyTask {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
@@ -103,7 +97,7 @@ fn process_data_runtime_increase() {
     let mut process = Box::pin(Process::<Cfs>::new(
         ProcessId::new(0),
         Priority::HIGH,
-        Box::pin(SleepyProcess(SLEEP_TIME)),
+        Box::pin(SleepyTask(SLEEP_TIME)),
     ));
     process
         .scheduler_data()
@@ -118,19 +112,19 @@ fn process_data_runtime_increase() {
 }
 
 #[test]
-fn future_process_assert_future_unmoved() {
-    let process = FutureProcess(AssertUnmoved::new(pending()));
-    let mut process: Pin<Box<dyn scheduler::Process>> = Box::pin(process);
+fn future_task_assert_future_unmoved() {
+    let task = FutureTask(AssertUnmoved::new(pending()));
+    let mut task: Pin<Box<dyn Task>> = Box::pin(task);
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = task.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = task.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = task.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
 }
 
@@ -140,7 +134,7 @@ fn has_process() {
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 
-    let _ = scheduler.add_process(Priority::NORMAL, Box::pin(NopTestProcess));
+    let _ = scheduler.add_task(Priority::NORMAL, NopTestTask);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
 }
@@ -152,10 +146,10 @@ fn add_actor() {
     let mut scheduler = test_scheduler();
     let new_actor = actor_fn(simple_actor);
     let rt = test::runtime();
-    let (process, _) = ActorFutureBuilder::new()
+    let (task, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    let _ = scheduler.add_process(Priority::NORMAL, Box::pin(process));
+    let _ = scheduler.add_task(Priority::NORMAL, task);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
 }
@@ -166,10 +160,10 @@ fn wake_process() {
 
     let new_actor = actor_fn(simple_actor);
     let rt = test::runtime();
-    let (process, _) = ActorFutureBuilder::new()
+    let (task, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    let _ = scheduler.add_process(Priority::NORMAL, Box::pin(process));
+    let _ = scheduler.add_task(Priority::NORMAL, task);
 
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
@@ -327,12 +321,12 @@ fn scheduler_run_order() {
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
         let rt = test::runtime();
-        let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
+        let (task, _) = ActorFutureBuilder::new().with_rt(rt).build(
             NoSupervisor,
             new_actor,
             (id, run_order.clone()),
         );
-        let pid = scheduler.add_process(*priority, Box::pin(process));
+        let pid = scheduler.add_task(*priority, task);
         pids.push(pid);
     }
 
@@ -356,12 +350,12 @@ fn assert_actor_process_unmoved() {
     let mut scheduler = test_scheduler();
 
     let rt = test::runtime();
-    let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
+    let (task, _) = ActorFutureBuilder::new().with_rt(rt).build(
         NoSupervisor,
         TestAssertUnmovedNewActor::new(),
         (),
     );
-    _ = scheduler.add_process(Priority::NORMAL, Box::pin(process));
+    _ = scheduler.add_task(Priority::NORMAL, task);
 
     // Run the process multiple times, ensure it's not moved in the process.
     let (mut process, waker) = scheduler.next_process().unwrap();
@@ -390,8 +384,8 @@ fn assert_actor_process_unmoved() {
 fn assert_future_process_unmoved() {
     let mut scheduler = test_scheduler();
 
-    let process = FutureProcess(AssertUnmoved::new(pending()));
-    let _ = scheduler.add_process(Priority::NORMAL, Box::pin(process));
+    let task = FutureTask(AssertUnmoved::new(pending()));
+    let _ = scheduler.add_task(Priority::NORMAL, task);
 
     // Run the process multiple times, ensure it's not moved in the process.
     let (mut process, waker) = scheduler.next_process().unwrap();
@@ -420,10 +414,10 @@ fn assert_future_process_unmoved() {
 fn add_test_actor(scheduler: &mut LocalScheduler<Cfs>, priority: Priority) -> ProcessId {
     let new_actor = actor_fn(simple_actor);
     let rt = test::runtime();
-    let (process, _) = ActorFutureBuilder::new()
+    let (task, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    scheduler.add_process(priority, Box::pin(process))
+    scheduler.add_task(priority, task)
 }
 
 /// Creates a `LocalScheduler` connected to the test runtime.

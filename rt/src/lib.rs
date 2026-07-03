@@ -187,7 +187,7 @@ use info::Info;
 use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
 use setup::Setup;
-use setup::scheduler::FutureProcess;
+use setup::scheduler::FutureTask;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.
@@ -499,10 +499,10 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        let process = FutureProcess(future);
+        let task = FutureTask(future);
         let pid = self
             .internals
-            .add_local_process(options.priority(), Box::pin(process));
+            .add_local_task(options.priority(), Box::pin(task));
         log::debug!(pid; "spawned thread-local future");
     }
 
@@ -589,13 +589,13 @@ where
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
         let rt = self.clone();
-        let (process, actor_ref) = ActorFutureBuilder::new()
+        let (task, actor_ref) = ActorFutureBuilder::new()
             .with_rt(rt)
             .with_inbox_size(options.inbox_size())
             .try_build(supervisor, new_actor, arg)?;
         let pid = self
             .internals
-            .add_local_process(options.priority(), Box::pin(process));
+            .add_local_task(options.priority(), Box::pin(task));
         let name = NA::name();
         log::debug!(pid, name; "spawned thread-local actor");
         Ok(actor_ref)

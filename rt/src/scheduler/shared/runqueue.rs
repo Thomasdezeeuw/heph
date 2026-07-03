@@ -118,7 +118,7 @@ mod tests {
     use std::task::{self, Poll};
     use std::time::Duration;
 
-    use crate::setup::scheduler::{self, ProcessId};
+    use crate::setup::scheduler::{ProcessId, Task};
     use crate::spawn::options::Priority;
 
     use super::{Node, Process, RunQueue};
@@ -131,15 +131,15 @@ mod tests {
         assert_eq!(size_of::<Node>(), 24);
     }
 
-    struct TestProcess;
+    struct TestTask;
 
-    impl scheduler::Process for TestProcess {
+    impl Task for TestTask {
         fn name(&self) -> &'static str {
-            "TestProcess"
+            "TestTask"
         }
     }
 
-    impl Future for TestProcess {
+    impl Future for TestTask {
         type Output = ();
 
         fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
@@ -151,7 +151,7 @@ mod tests {
         let mut process = Box::pin(Process::new(
             ProcessId::new(0),
             Priority::NORMAL,
-            Box::pin(TestProcess),
+            Box::pin(TestTask),
         ));
         process.set_id();
         process.scheduler_data().set_fair_runtime(fair_runtime);

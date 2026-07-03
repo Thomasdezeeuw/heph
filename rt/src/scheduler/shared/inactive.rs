@@ -701,7 +701,7 @@ mod tests {
     use std::task::{self, Poll};
 
     use crate::scheduler::shared::RunQueue;
-    use crate::setup::scheduler::{self, ProcessId};
+    use crate::setup::scheduler::{ProcessId, Task};
     use crate::spawn::options::Priority;
 
     use super::{
@@ -724,15 +724,15 @@ mod tests {
         assert_sync::<Inactive>();
     }
 
-    struct TestProcess;
+    struct TestTask;
 
-    impl scheduler::Process for TestProcess {
+    impl Task for TestTask {
         fn name(&self) -> &'static str {
-            "TestProcess"
+            "TestTask"
         }
     }
 
-    impl Future for TestProcess {
+    impl Future for TestTask {
         type Output = ();
 
         fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
@@ -744,7 +744,7 @@ mod tests {
         let mut process = Box::pin(Process::new(
             ProcessId::new(0),
             Priority::default(),
-            Box::pin(TestProcess),
+            Box::pin(TestTask),
         ));
         process.set_id();
         process
@@ -834,7 +834,7 @@ mod tests {
         }
     }
 
-    impl scheduler::Process for DropTest {
+    impl Task for DropTest {
         fn name(&self) -> &'static str {
             "DropTest"
         }
