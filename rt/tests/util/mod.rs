@@ -131,6 +131,47 @@ where
     }
 }
 
+/// Assert that a `Future` is not moved between calls.
+pub struct AssertUnmoved<Fut> {
+    future: Fut,
+    /// Last place the future was polled, or null if never pulled.
+    last_place: *const Self,
+}
+
+impl<Fut> AssertUnmoved<Fut> {
+    /// Create a new `AssertUnmoved`.
+    pub const fn new(future: Fut) -> AssertUnmoved<Fut> {
+        AssertUnmoved {
+            future,
+            last_place: std::ptr::null(),
+        }
+    }
+}
+
+impl<Fut> Future for AssertUnmoved<Fut>
+where
+    Fut: Future,
+{
+    type Output = Fut::Output;
+
+    #[track_caller]
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let place = std::ptr::from_ref(&*self);
+        if self.last_place.is_null() {
+            unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.last_place).set(place) }
+        } else {
+            assert_eq!(
+                self.last_place, place,
+                "AssertUnmoved moved between poll calls"
+            );
+        }
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.future).poll(ctx) }
+    }
+}
+
+unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
+unsafe impl<Fut: Sync> Sync for AssertUnmoved<Fut> {}
+
 /// Returns a [`Future`] that return [`Poll::Pending`] once, without waking
 /// itself.
 pub const fn pending_once() -> PendingOnce {

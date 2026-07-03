@@ -14,8 +14,6 @@ use crate::spawn::options::Priority;
 
 pub(crate) mod process;
 pub(crate) mod shared;
-#[cfg(test)]
-mod tests;
 
 type Process<S> = process::Process<S, dyn Task>;
 
@@ -40,6 +38,15 @@ impl<S: Schedule> LocalScheduler<S> {
             ready: BinaryHeap::with_capacity(8),
             inactive,
         }
+    }
+
+    /// Testing only. Waking doesn't work properly.
+    #[doc(hidden)]
+    #[cfg(any(test, feature = "test"))]
+    pub fn new_testing() -> LocalScheduler<S> {
+        use crate::access::Access;
+        let rt = crate::test::runtime();
+        LocalScheduler::new(rt.sq())
     }
 
     /// Reserve a slot for a process, returning the process id.

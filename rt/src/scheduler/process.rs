@@ -116,3 +116,13 @@ impl<S: fmt::Debug, T: Task + ?Sized> fmt::Debug for Process<S, T> {
             .finish()
     }
 }
+
+#[test]
+fn size_assertions() {
+    use crate::setup::scheduler::Cfs;
+    use crate::test::assert_size;
+
+    assert_size::<Priority>(1);
+    assert_size::<Process<Cfs, Box<dyn Task>>>(40);
+    assert_size::<Process<Cfs, Box<dyn Task + Send + Sync>>>(40);
+}

@@ -127,7 +127,10 @@ fn scheduler_run_order() {
     // are equal).
     for _ in 0..3 {
         let mut process = scheduler.remove().unwrap();
-        assert_eq!(Pin::new(&mut process).run(&mut ctx), Poll::Ready(()));
+        assert_eq!(
+            Pin::new(&mut process).run(&mut ctx).result(),
+            Poll::Ready(())
+        );
     }
     assert!(!scheduler.has_process());
     assert_eq!(*run_order.lock().unwrap(), vec![2_usize, 1, 0]);
