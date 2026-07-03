@@ -195,6 +195,12 @@ impl Schedule for Cfs {
 }
 
 impl Cfs {
+    /// Set the calculated fair runtime.
+    #[cfg(test)]
+    pub fn set_fair_runtime(&mut self, fair_runtime: Duration) {
+        self.fair_runtime = fair_runtime;
+    }
+
     /// Returns the calculated fair runtime.
     #[cfg(any(test, feature = "test"))]
     pub fn fair_runtime(&mut self) -> Duration {
@@ -388,6 +394,12 @@ impl RunStats {
             elapsed,
             result,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn empty() -> RunStats {
+        let now = Instant::now();
+        RunStats::new(now, now, Poll::Pending)
     }
 
     /// When the processes started running.

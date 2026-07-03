@@ -1,6 +1,7 @@
 //! Tests for the shared scheduler.
 
 use std::future::pending;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
@@ -10,7 +11,7 @@ use heph::supervisor::NoSupervisor;
 
 use crate::ThreadSafe;
 use crate::scheduler::shared::{Priority, Process, Scheduler};
-use crate::setup::scheduler::{FutureProcess, ProcessId};
+use crate::setup::scheduler::{FutureProcess, ProcessId, RunStats, SchedulerProcess};
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]
@@ -41,7 +42,7 @@ fn adding_actor() {
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.remove().unwrap();
-    scheduler.add_back_process(process);
+    scheduler.add_back_process(process, RunStats::empty());
 
     // After scheduling the process should be ready to run.
     scheduler.mark_ready(pid);
@@ -59,7 +60,7 @@ fn adding_actor() {
     assert!(!scheduler.has_ready_process());
 
     // Adding the process back means its not ready.
-    scheduler.add_back_process(process);
+    scheduler.add_back_process(process, RunStats::empty());
     assert!(scheduler.has_process());
     assert!(!scheduler.has_ready_process());
     assert_eq!(scheduler.remove(), None);
@@ -126,7 +127,7 @@ fn scheduler_run_order() {
     // are equal).
     for _ in 0..3 {
         let mut process = scheduler.remove().unwrap();
-        assert_eq!(process.as_mut().run(&mut ctx), Poll::Ready(()));
+        assert_eq!(Pin::new(&mut process).run(&mut ctx), Poll::Ready(()));
     }
     assert!(!scheduler.has_process());
     assert_eq!(*run_order.lock().unwrap(), vec![2_usize, 1, 0]);
@@ -149,17 +150,20 @@ fn assert_actor_process_unmoved() {
     // Run the process multiple times, ensure it's not moved in the
     // process.
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
-    scheduler.add_back_process(process);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
+    scheduler.add_back_process(process, stats);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
-    scheduler.add_back_process(process);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
+    scheduler.add_back_process(process, stats);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
 }
 
 #[test]
@@ -174,17 +178,20 @@ fn assert_future_process_unmoved() {
     // Run the process multiple times, ensure it's not moved in the
     // process.
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
-    scheduler.add_back_process(process);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
+    scheduler.add_back_process(process, stats);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
-    scheduler.add_back_process(process);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
+    scheduler.add_back_process(process, stats);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let stats = Pin::new(&mut process).run(&mut ctx);
+    assert_eq!(stats.result(), Poll::Pending);
 }
 
 fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {

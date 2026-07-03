@@ -6,7 +6,7 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::setup::scheduler::{Process, ProcessId};
+    use crate::setup::scheduler::{Process, ProcessId, RunStats};
     use crate::shared;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
@@ -38,7 +38,7 @@ mod shared {
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
-        shared_internals.add_back_process(process);
+        shared_internals.add_back_process(process, RunStats::empty());
         assert!(shared_internals.has_process());
         assert!(!shared_internals.has_ready_process());
 
@@ -70,7 +70,7 @@ mod shared {
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
-        shared_internals.add_back_process(process);
+        shared_internals.add_back_process(process, RunStats::empty());
         assert!(shared_internals.has_process());
         assert!(!shared_internals.has_ready_process());
 
@@ -95,7 +95,7 @@ mod shared {
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
-        shared_internals.add_back_process(process);
+        shared_internals.add_back_process(process, RunStats::empty());
         assert!(shared_internals.has_process());
         assert!(!shared_internals.has_ready_process());
 
