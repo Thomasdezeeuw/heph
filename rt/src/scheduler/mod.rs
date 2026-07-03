@@ -149,7 +149,11 @@ impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
     }
 
     fn processes_inactive(&self) -> usize {
-        self.inactive.iter().map(|p| usize::from(p.length)).sum()
+        self.inactive
+            .iter()
+            .map(|p| usize::from(p.length))
+            .sum::<usize>()
+            - self.processes_ready()
     }
 
     fn has_process(&self) -> bool {
