@@ -128,6 +128,33 @@ where
         self.threads
     }
 
+    /// Change the thread-local [`Scheduler`] implementation.
+    ///
+    /// The function `create_scheduler` will be called on each worker to create
+    /// a new [`Scheduler`] implementation for each thread.
+    ///
+    /// # Notes
+    ///
+    /// This doesn't change the implementation for thread-safe scheduler.
+    pub fn with_scheduler<FS2, S2>(self, create_scheduler: FS2) -> Setup<FS2, FT>
+    where
+        FS2: FnOnce(a10::SubmissionQueue) -> S2 + Clone + Send + 'static,
+        S2: Scheduler + 'static,
+    {
+        #[rustfmt::skip]
+        let Setup { name, threads, create_scheduler: _, create_timers, auto_cpu_affinity, run_poll_ratio, max_run_time, trace_log } = self;
+        Setup {
+            name,
+            threads,
+            create_scheduler,
+            create_timers,
+            auto_cpu_affinity,
+            run_poll_ratio,
+            max_run_time,
+            trace_log,
+        }
+    }
+
     /// Change the thread-local [`Timers`] implementation.
     ///
     /// The function `create_timers` will be called on each worker to create a
