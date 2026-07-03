@@ -209,11 +209,13 @@ struct ProcessSlot<S> {
     ///
     /// Or as an enum:
     ///
+    /// ```
     /// enum ProcessSlot<S> {
     ///     Waiting(Pin<Box<Process<S>>>),
     ///     Ready,
     ///     Empty,
     /// }
+    /// ```
     ///
     /// But that Rust can't fit that into a single pointer (at the time of
     /// writing).
