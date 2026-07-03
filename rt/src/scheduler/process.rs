@@ -5,8 +5,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, ptr};
 
-use crate::scheduler::{Priority, RunStats, Schedule, Task};
-use crate::setup::scheduler::ProcessId;
+use crate::setup::scheduler::{ProcessId, RunStats, Schedule, Task};
+use crate::spawn::options::Priority;
 
 /// Process container.
 ///
@@ -73,7 +73,7 @@ impl<S: Schedule, T: Task + ?Sized> Future for Process<S, T> {
 
 impl<S, T: ?Sized> Process<S, T> {
     /// Returns the process identifier, or pid for short.
-    pub(crate) fn id(&self) -> ProcessId {
+    fn id(&self) -> ProcessId {
         self.id
     }
 

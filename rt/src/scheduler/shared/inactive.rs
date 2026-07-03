@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
 
 use crate::scheduler::shared::{Process, RunQueue};
-use crate::setup::scheduler::ProcessId;
+use crate::setup::scheduler::{Process as _, ProcessId};
 
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 2;
@@ -701,7 +701,7 @@ mod tests {
     use std::task::{self, Poll};
 
     use crate::scheduler::shared::RunQueue;
-    use crate::setup::scheduler::{ProcessId, Task};
+    use crate::setup::scheduler::{Process as _, ProcessId, Task};
     use crate::spawn::options::Priority;
 
     use super::{
