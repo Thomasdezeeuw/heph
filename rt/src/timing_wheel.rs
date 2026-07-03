@@ -526,7 +526,7 @@ fn as_offset(epoch: Instant, time: Instant) -> TimeOffset {
 
 /// To avoid having to check all slots and the overflow for timers in a wheel
 /// this type caches the earliest deadline. This speeds up
-/// [`TimingWheel::next`].
+/// [`TimingWheel::next_deadline`].
 #[derive(Debug)]
 enum CachedInstant {
     /// Wheel is empty.

@@ -8,12 +8,10 @@
 //! responsible for it. This shared part can be fore in
 //! [`shared::RuntimeInternals`].
 //!
-//! Creating a new worker starts with calling [`setup`] to prepare various
-//! things that need to happen on the main/coordinator thread. After that worker
-//! thread can be [started], which runs [`Worker::run`] in a new thread.
+//! Creating a new worker starts with calling [`spawn_thread`] to spawn a new
+//! thread that runs the worker.
 //!
 //! [`Runtime`]: crate::Runtime
-//! [started]: WorkerSetup::start
 
 use std::num::NonZeroUsize;
 use std::pin::Pin;

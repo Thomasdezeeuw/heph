@@ -89,12 +89,12 @@ pub(crate) struct RuntimeInternals<S, T> {
     /// Whether or not the runtime was started.
     ///
     /// This is here because the worker threads are started before
-    /// [`crate::Runtime::start`] is called and thus before any actors are added
-    /// to the runtime. Because of this the worker could check all schedulers,
-    /// see that no actors are in them and determine it's done before even
-    /// starting the runtime.
+    /// [`Runtime::start`] is called and thus before any actors are added to the
+    /// runtime. Because of this the worker could check all schedulers, see that
+    /// no actors are in them and determine it's done before even starting the
+    /// runtime.
     ///
-    /// [`Runtime::start`]: rt::Runtime::start
+    /// [`Runtime::start`]: crate::Runtime::start
     started: Cell<bool>,
     /// Fatal error hit in one of the system actors that should stop the worker.
     error: RefCell<Option<worker::Error>>,

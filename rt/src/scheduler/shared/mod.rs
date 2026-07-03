@@ -47,7 +47,7 @@ pub(crate) type Process = process::Process<Cfs, dyn Task + Send + Sync>;
 ///
 /// ## Adding processes
 ///
-/// Adding new processes can be done using [`Scheduler::add_new_process`]. It
+/// Adding new processes can be done using [`Scheduler::add_new_task`]. It
 /// accepts a callback function to get access to the PID before the process is
 /// actually added.
 ///

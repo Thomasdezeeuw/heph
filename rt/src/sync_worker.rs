@@ -5,8 +5,8 @@
 //! stopping the thread).
 //!
 //! The [`sync_worker::Handle`] type is a handle to the sync worker thread
-//! managed by the [coordinator]. The [`start`] function can be used to start a
-//! new synchronous actor.
+//! managed by the [coordinator]. The [`spawn_thread`] function can be used to
+//! spawn a thread running the new synchronous actor.
 //!
 //! [coordinator]: crate::coordinator
 //! [`sync_worker::Handle`]: Handle
@@ -57,7 +57,7 @@ where
     Ok((Handle { id, handle }, actor_ref))
 }
 
-/// Calls [`shared::RuntimeInternals::wake_coordinator`] when the type is
+/// Calls [`shared::RuntimeInternals::notify_worker_stop`] when the type is
 /// dropped.
 struct WakeOnDrop {
     id: NonZeroUsize,
