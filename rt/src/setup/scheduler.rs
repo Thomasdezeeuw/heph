@@ -222,7 +222,7 @@ where
     T: std::ops::DerefMut<Target: Task>, // NOTE: DerefMut is required for Future impl.
 {
     fn name(&self) -> &'static str {
-        (&**self).name()
+        (**self).name()
     }
 }
 
@@ -231,7 +231,7 @@ where
     T: Task + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
 {
     fn name(&self) -> &'static str {
-        (&**self).name()
+        (**self).name()
     }
 }
 
@@ -328,7 +328,7 @@ where
     T: std::ops::DerefMut<Target: Process>, // NOTE: DerefMut is required for Future impl.
 {
     fn id(&self) -> ProcessId {
-        (&**self).id()
+        (**self).id()
     }
 }
 
@@ -337,7 +337,7 @@ where
     T: Process + Unpin + ?Sized, // NOTE: Unpin is required for Future impl.
 {
     fn id(&self) -> ProcessId {
-        (&**self).id()
+        (**self).id()
     }
 }
 
