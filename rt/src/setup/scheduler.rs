@@ -104,12 +104,17 @@ pub trait Scheduler: fmt::Debug {
         self.add_task(priority, task)
     }
 
-    /// Mark all processes that are awoken as ready.
+    /// Schedule all processes that were previously awoken.
     ///
-    /// Returns the number of processes that were awoken.
-    // TODO: better name, not sure if it's clear enough. Maybe rename/remove the
-    // "process" part.
-    fn process_wakeups(&mut self) -> usize;
+    /// Since the `task::Waker`, returned by [`Scheduler::next_process`], must
+    /// be `Send + Sync` it's possible that it's used on a different thread.
+    /// This prevents the waker implementation to directly schedule (mark as
+    /// ready to run) processes in some cases. In those cases this information
+    /// needs to be stored and processed later, this function is that "processed
+    /// later" part.
+    ///
+    /// Returns the number of processes that were scheduled.
+    fn schedule_processes(&mut self) -> usize;
 
     /// Returns the number of processes that are ready to run.
     fn processes_ready(&self) -> usize;

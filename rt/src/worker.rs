@@ -427,7 +427,7 @@ where
         let timing = trace::start(&*self.internals.trace_log.borrow());
         log::trace!(worker_id = self.internals.id; "scheduling thread-local processes");
 
-        let amount = self.internals.scheduler.borrow_mut().process_wakeups();
+        let amount = self.internals.scheduler.borrow_mut().schedule_processes();
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),

@@ -119,7 +119,7 @@ impl<S: Schedule + fmt::Debug> Scheduler for LocalScheduler<S> {
         pid
     }
 
-    fn process_wakeups(&mut self) -> usize {
+    fn schedule_processes(&mut self) -> usize {
         let mut amount = 0;
         for inactive in &mut self.inactive {
             for index in inactive.bitmap.set_iter() {
