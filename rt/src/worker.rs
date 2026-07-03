@@ -305,7 +305,7 @@ where
                 let name = process.name();
                 log::debug!(worker_id = self.internals.id, pid, name; "running local process");
                 let mut ctx = task::Context::from_waker(&waker);
-                let stats = process.as_mut().run(&mut ctx);
+                let stats = Pin::new(&mut process).run(&mut ctx);
                 match stats.result() {
                     task::Poll::Ready(()) => {
                         log::trace!(worker_id = self.internals.id, pid, name; "removing completed local process");
