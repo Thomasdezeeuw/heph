@@ -29,6 +29,8 @@ use heph::{ActorFuture, NewActor, Supervisor};
 use crate::panic_message;
 use crate::spawn::options::Priority;
 
+pub use crate::scheduler::LocalScheduler;
+
 /// Scheduler implementation.
 ///
 /// This trait defines the data structure and algorithm uses to manage all
@@ -132,7 +134,7 @@ pub trait Scheduler: fmt::Debug {
 }
 
 /// Default scheduler.
-pub(crate) type DefaultScheduler = fn(a10::SubmissionQueue) -> crate::scheduler::Scheduler<Cfs>;
+pub(crate) type DefaultScheduler = fn(a10::SubmissionQueue) -> LocalScheduler<Cfs>;
 
 /// Scheduling implementation.
 ///

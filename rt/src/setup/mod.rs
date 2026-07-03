@@ -33,7 +33,6 @@ use timers::{DefaultTimers, Timers};
 /// [crate documentation]: crate#running-hephs-runtime
 #[derive(Debug)]
 #[must_use = "`heph_rt::Setup` doesn't do anything until its `build`"]
-#[allow(private_interfaces)] // TODO: remove once the scheduler type is public.
 pub struct Setup<FS = DefaultScheduler, FT = DefaultTimers> {
     /// Name of the application.
     name: Option<String>,
@@ -132,6 +131,8 @@ where
     ///
     /// The function `create_scheduler` will be called on each worker to create
     /// a new [`Scheduler`] implementation for each thread.
+    ///
+    /// Defaults to [`LocalScheduler`].
     ///
     /// # Notes
     ///

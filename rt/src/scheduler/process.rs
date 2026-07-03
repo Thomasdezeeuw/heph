@@ -19,7 +19,7 @@ use crate::setup::scheduler::ProcessId;
 /// (`ProcessId`).
 ///
 /// `PartialOrd` and `Ord` however are implemented using `S::order`.
-pub(crate) struct Process<S, P: ?Sized> {
+pub struct Process<S, P: ?Sized> {
     id: ProcessId,
     scheduler_data: S,
     #[allow(clippy::struct_field_names)]
