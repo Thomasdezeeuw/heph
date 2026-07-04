@@ -50,7 +50,7 @@ pub(crate) struct Conf<FS, FT> {
 /// Spawn a new worker thread.
 pub(crate) fn spawn_thread<FS, S, FT, T>(conf: Conf<FS, FT>) -> io::Result<Spawned>
 where
-    FS: FnOnce(a10::SubmissionQueue) -> S + Send + 'static,
+    FS: FnOnce(WorkerWaker) -> S + Send + 'static,
     S: Scheduler + 'static,
     FT: FnOnce() -> T + Send + 'static,
     T: Timers + 'static,
@@ -145,7 +145,7 @@ fn main<FS, S, FT, T>(
     init: Arc<OnceLock<ActorRef<Control>>>,
 ) -> Result<(), Error>
 where
-    FS: FnOnce(a10::SubmissionQueue) -> S,
+    FS: FnOnce(WorkerWaker) -> S,
     S: Scheduler + 'static,
     FT: FnOnce() -> T,
     T: Timers + 'static,
@@ -186,7 +186,7 @@ where
         init: Arc<OnceLock<ActorRef<Control>>>,
     ) -> Result<Worker<S, T>, Error>
     where
-        FS: FnOnce(a10::SubmissionQueue) -> S,
+        FS: FnOnce(WorkerWaker) -> S,
         FT: FnOnce() -> T,
     {
         #[rustfmt::skip]
@@ -221,12 +221,12 @@ where
         let ring = config.build().map_err(Error::Setup)?;
 
         // Finally we can create the runtime internals.
-        let sq = ring.sq();
+        let waker = WorkerWaker(ring.sq());
         let internals = Rc::new(local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,
-            create_scheduler(sq),
+            create_scheduler(waker),
             create_timers(),
             cpu_affinity,
             trace_log,
@@ -655,5 +655,40 @@ async fn poll_actor(mut ctx: actor::Context<!, ThreadLocal>) {
             log::warn!("error polling shared ring: {err}");
         }
         ctx.finish_trace(timing, "Polling shared ring", &[]);
+    }
+}
+
+/// Wake up a worker thread.
+///
+/// While the worker thread is running it polls for I/O events at various
+/// points. If there are processes ready to run, or timers ready to trigger,
+/// this is done with a zero duration or small timeout. However, if this is not
+/// the case the worker will poll without a timeout, allowing the thread to go
+/// to sleep if there are no I/O events. If a user space wake up occors (via a
+/// [`task::Waker`]) then that implementation needs a way to wake up the worker
+/// thread to ensure it stops sleeping and starts running again. This type
+/// provides that (and only that).
+///
+/// It's passed to each [`Scheduler`] when it's created on the worker thread for
+/// use in their `task::Waker` implementation. See [`Setup::with_scheduler`].
+///
+/// [`Setup::with_scheduler`]: crate::setup::Setup::with_scheduler
+#[derive(Debug, Clone)]
+pub struct WorkerWaker(a10::SubmissionQueue);
+
+impl WorkerWaker {
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) const fn new(sq: a10::SubmissionQueue) -> WorkerWaker {
+        WorkerWaker(sq)
+    }
+
+    /// Wake the associated worker.
+    ///
+    /// # Notes
+    ///
+    /// If the worker is currently running, i.e. not polling for events, this is
+    /// a cheap operation.
+    pub fn wake(&self) {
+        self.0.wake()
     }
 }

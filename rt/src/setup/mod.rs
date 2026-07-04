@@ -23,6 +23,7 @@ use crate::{Error, Runtime, coordinator, shared, worker};
 pub mod scheduler;
 pub mod timers;
 
+use crate::worker::WorkerWaker;
 use scheduler::{Cfs, DefaultScheduler, LocalScheduler, Scheduler};
 use timers::{DefaultTimers, Timers};
 
@@ -74,7 +75,7 @@ impl Setup {
 
 impl<FS, S, FT, T> Setup<FS, FT>
 where
-    FS: FnOnce(a10::SubmissionQueue) -> S + Clone + Send + 'static,
+    FS: FnOnce(WorkerWaker) -> S + Clone + Send + 'static,
     S: Scheduler + 'static,
     FT: FnOnce() -> T + Clone + Send + 'static,
     T: Timers + 'static,
@@ -140,7 +141,7 @@ where
     /// This doesn't change the implementation for thread-safe scheduler.
     pub fn with_scheduler<FS2, S2>(self, create_scheduler: FS2) -> Setup<FS2, FT>
     where
-        FS2: FnOnce(a10::SubmissionQueue) -> S2 + Clone + Send + 'static,
+        FS2: FnOnce(WorkerWaker) -> S2 + Clone + Send + 'static,
         S2: Scheduler + 'static,
     {
         #[rustfmt::skip]

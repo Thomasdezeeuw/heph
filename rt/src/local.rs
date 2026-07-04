@@ -179,12 +179,12 @@ impl RuntimeInternals<LocalScheduler, TimingWheel> {
         shared_internals: Arc<shared::RuntimeInternals>,
     ) -> RuntimeInternals<LocalScheduler, TimingWheel> {
         let ring = a10::Ring::new().unwrap();
-        let sq = ring.sq();
+        let waker = worker::WorkerWaker::new(ring.sq());
         RuntimeInternals::new(
             NonZeroUsize::new(1).unwrap(),
             shared_internals,
             ring,
-            LocalScheduler::new(sq),
+            LocalScheduler::new(waker),
             TimingWheel::new(),
             None,
             None,

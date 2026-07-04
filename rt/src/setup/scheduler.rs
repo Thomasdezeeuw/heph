@@ -30,6 +30,7 @@ use crate::panic_message;
 use crate::spawn::options::Priority;
 
 pub use crate::scheduler::LocalScheduler;
+pub use crate::worker::WorkerWaker;
 
 /// Scheduler implementation.
 ///
@@ -134,7 +135,7 @@ pub trait Scheduler: fmt::Debug {
 }
 
 /// Default scheduler.
-pub(crate) type DefaultScheduler = fn(a10::SubmissionQueue) -> LocalScheduler<Cfs>;
+pub(crate) type DefaultScheduler = fn(WorkerWaker) -> LocalScheduler<Cfs>;
 
 /// Scheduling implementation.
 ///

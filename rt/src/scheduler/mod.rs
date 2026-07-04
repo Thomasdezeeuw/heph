@@ -11,6 +11,7 @@ use std::{fmt, iter, ptr, task, thread};
 
 use crate::setup::scheduler::{Cfs, Process as _, ProcessId, RunStats, Schedule, Scheduler, Task};
 use crate::spawn::options::Priority;
+use crate::worker::WorkerWaker;
 
 pub(crate) mod process;
 pub(crate) mod shared;
@@ -31,9 +32,9 @@ pub struct LocalScheduler<S = Cfs> {
 
 impl<S: Schedule> LocalScheduler<S> {
     /// Create a new local scheduler.
-    pub fn new(sq: a10::SubmissionQueue) -> LocalScheduler<S> {
+    pub fn new(waker: WorkerWaker) -> LocalScheduler<S> {
         let mut inactive = Vec::with_capacity(8);
-        inactive.push(Processes::new(sq));
+        inactive.push(Processes::new(waker));
         LocalScheduler {
             ready: BinaryHeap::with_capacity(8),
             inactive,
@@ -46,7 +47,8 @@ impl<S: Schedule> LocalScheduler<S> {
     pub fn new_testing() -> LocalScheduler<S> {
         use crate::access::Access;
         let rt = crate::test::runtime();
-        LocalScheduler::new(rt.sq())
+        let waker = WorkerWaker::new(rt.sq());
+        LocalScheduler::new(waker)
     }
 
     /// Reserve a slot for a process, returning the process id.
@@ -74,8 +76,8 @@ impl<S: Schedule> LocalScheduler<S> {
             }
         }
 
-        let sq = self.inactive[0].bitmap.inner().sq.clone();
-        let inactive = self.inactive.push_mut(Processes::new(sq));
+        let waker = self.inactive[0].bitmap.inner().waker.clone();
+        let inactive = self.inactive.push_mut(Processes::new(waker));
         inactive.length += 1;
         inactive.next_empty = 1;
         inactive.processes[0].mark_empty_as_ready();
@@ -194,7 +196,7 @@ struct Processes<S> {
 }
 
 impl<S> Processes<S> {
-    fn new(sq: a10::SubmissionQueue) -> Processes<S> {
+    fn new(waker: WorkerWaker) -> Processes<S> {
         /* TODO: use a const assertion once that works.
         const _ZEROED_OK: () =
         */
@@ -203,7 +205,7 @@ impl<S> Processes<S> {
             // SAFETY: all zero bits is valid for ProcessSlot as it means the
             // slot is empty.
             processes: unsafe { Box::new_zeroed().assume_init() },
-            bitmap: ReadyMap::new(sq),
+            bitmap: ReadyMap::new(waker),
             next_empty: 0,
             length: 0,
         }
@@ -317,18 +319,18 @@ const N_BITS_CONTAINERS: usize = N_PROCESS_PER_GROUP / u64::BITS as usize;
 const BITS_IN_MAP: usize = N_BITS_CONTAINERS * u64::BITS as usize;
 
 struct ReadyMapInner {
-    sq: a10::SubmissionQueue,
+    waker: WorkerWaker,
     ref_count: AtomicU64,
     bits: [AtomicU64; N_BITS_CONTAINERS],
 }
 
 impl ReadyMap {
-    fn new(sq: a10::SubmissionQueue) -> ReadyMap {
+    fn new(waker: WorkerWaker) -> ReadyMap {
         let mut inner = {
             let mut alloc = Box::<ReadyMapInner>::new_zeroed();
-            unsafe { ptr::addr_of_mut!((*alloc.as_mut_ptr()).sq).write(sq) };
+            unsafe { ptr::addr_of_mut!((*alloc.as_mut_ptr()).waker).write(waker) };
             // SAFETY: all zero bits is valid for AtomicU64 and thus for
-            // ref_count and bits. The sq field we properly initialised.
+            // ref_count and bits. The waker field we properly initialised.
             unsafe { alloc.assume_init() }
         };
         *inner.ref_count.get_mut() = 1;
@@ -430,7 +432,7 @@ impl ReadyMapInner {
     /// Wake process with `index`.
     fn wake(&self, index: u16) {
         self.set(index);
-        self.sq.wake();
+        self.waker.wake();
     }
 
     /// Set bit at `index`.
