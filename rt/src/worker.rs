@@ -690,6 +690,6 @@ impl WorkerWaker {
     /// If the worker is currently running, i.e. not polling for events, this is
     /// a cheap operation.
     pub fn wake(&self) {
-        self.0.wake()
+        self.0.wake();
     }
 }
