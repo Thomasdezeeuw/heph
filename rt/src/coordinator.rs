@@ -109,6 +109,7 @@ pub(crate) struct Coordinator {
     /// I/O ring.
     ring: a10::Ring,
     /// Internals shared between the coordinator and all (sync) workers.
+    // TODO: dyn trait or generic parameters?
     internals: Arc<shared::RuntimeInternals>,
     /// Handles to the worker threads.
     workers: Vec<Option<worker::Handle>>,

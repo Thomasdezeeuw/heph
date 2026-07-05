@@ -30,6 +30,7 @@ pub(crate) fn spawn_thread<S, A>(
     actor: A,
     arg: A::Argument,
     options: SyncActorOptions,
+    // TODO: generics.
     shared: Arc<shared::RuntimeInternals>,
     trace_log: Option<trace::Log>,
 ) -> io::Result<(Handle, ActorRef<A::Message>)>
@@ -61,6 +62,7 @@ where
 /// dropped.
 struct WakeOnDrop {
     id: NonZeroUsize,
+    // TODO: generics.
     internals: Arc<shared::RuntimeInternals>,
 }
 

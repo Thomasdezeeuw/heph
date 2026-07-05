@@ -39,6 +39,7 @@ const SYSTEM_ACTORS: usize = 2;
 /// Configuratiob of a [`Worker`].
 pub(crate) struct Conf<FS, FT> {
     pub(crate) id: NonZeroUsize,
+    // TODO: generics.
     pub(crate) shared_internals: Arc<shared::RuntimeInternals>,
     pub(crate) create_scheduler: FS,
     pub(crate) create_timers: FT,

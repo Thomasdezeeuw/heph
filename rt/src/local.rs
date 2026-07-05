@@ -63,8 +63,12 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn try_poll_shared_ring(&self) -> io::Result<()>;
+    // TODO: dyn trait or remove?
     fn shared(&self) -> &Arc<shared::RuntimeInternals>;
+    /*
+    // TODO: dyn trait or remove?
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
+    */
 }
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
@@ -73,6 +77,7 @@ pub(crate) struct RuntimeInternals<S, T> {
     /// Unique id among the worker threads.
     pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
+    // TODO: more generics.
     pub(crate) shared: Arc<shared::RuntimeInternals>,
     /// I/O ring.
     pub(crate) ring: RefCell<a10::Ring>,
@@ -107,6 +112,7 @@ where
     /// Create a local runtime internals.
     pub(crate) fn new(
         id: NonZeroUsize,
+        // TODO: generics.
         shared_internals: Arc<shared::RuntimeInternals>,
         ring: a10::Ring,
         scheduler: S,
@@ -334,7 +340,9 @@ where
         &self.shared
     }
 
+    /*
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.shared.clone()
     }
+    */
 }

@@ -208,6 +208,7 @@ pub struct Runtime {
     /// Setup for the coordinator that will oversee the worker threads.
     coordinator_setup: coordinator::Setup,
     /// Internals shared between the coordinator and all (sync) workers.
+    // TODO: dyn trait.
     internals: Arc<shared::RuntimeInternals>,
     /// Worker threads.
     workers: Vec<worker::Handle>,
@@ -566,10 +567,12 @@ impl RuntimeRef {
         self.internals.shared_ring_pollable(sq)
     }
 
+    /*
     /// Returns a copy of the shared internals.
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.clone_shared()
     }
+    */
 }
 
 impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef

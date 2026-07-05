@@ -212,6 +212,7 @@ impl PrivateAccess for ThreadLocal {
 /// [`spawn_future`]: ThreadSafe::spawn_future
 #[derive(Clone)]
 pub struct ThreadSafe {
+    // TODO: need dyn trait.
     rt: Arc<shared::RuntimeInternals>,
 }
 
@@ -240,7 +241,10 @@ impl From<&Runtime> for ThreadSafe {
 
 impl From<&RuntimeRef> for ThreadSafe {
     fn from(rt: &RuntimeRef) -> ThreadSafe {
+        todo!()
+        /*
         ThreadSafe::new(rt.clone_shared())
+        */
     }
 }
 
@@ -381,6 +385,7 @@ where
 /// [`spawn_future`]: Sync::spawn_future
 #[derive(Clone)]
 pub struct Sync {
+    // TODO: need dyn trait.
     rt: Arc<shared::RuntimeInternals>,
     trace_log: Option<trace::Log>,
 }
