@@ -29,7 +29,7 @@ mod util {
         }
     }
 
-    pub(crate) fn block_on_many(mut futs: Vec<Pin<&mut dyn Future<Output = ()>>>) {
+    pub(crate) fn block_on_many(mut futs: Vec<Pin<Box<dyn Future<Output = ()>>>>) {
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         while !futs.is_empty() {
             futs.extract_if(.., |fut| match fut.as_mut().poll(&mut ctx) {

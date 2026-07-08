@@ -1,7 +1,5 @@
 //! Tests for the `from_message!` macro.
 
-use std::pin::pin;
-
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::supervisor::NoSupervisor;
@@ -28,7 +26,7 @@ fn from_message() {
     let ping_actor = actor_fn(ping_actor);
     let (ping_actor, _) = ActorFuture::new(NoSupervisor, ping_actor, pong_ref.clone());
 
-    block_on_many(vec![pin!(ping_actor), pin!(pong_actor)]);
+    block_on_many(vec![Box::pin(ping_actor), Box::pin(pong_actor)]);
 }
 
 async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
