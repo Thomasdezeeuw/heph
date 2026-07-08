@@ -218,3 +218,17 @@ where
     log::debug!(pid, name; "spawned thread-safe actor");
     Ok(actor_ref)
 }
+
+#[allow(clippy::needless_pass_by_value)]
+pub(crate) fn spawn_future<Fut>(
+    rt: &Arc<shared::RuntimeInternals>,
+    future: Fut,
+    options: FutureOptions,
+) where
+    Fut: Future<Output = ()> + Send + Sync + 'static,
+{
+    let task = FutureTask(future);
+    let name = task.name();
+    let pid = rt.add_new_task(options.priority(), Box::pin(task));
+    log::debug!(pid, name; "spawned thread-safe future");
+}

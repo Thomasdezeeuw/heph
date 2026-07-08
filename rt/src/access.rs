@@ -228,7 +228,7 @@ impl ThreadSafe {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.rt.spawn_future(future, options);
+        spawn::spawn_future(&self.rt, future, options);
     }
 }
 
@@ -401,7 +401,7 @@ impl Sync {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.rt.spawn_future(future, options);
+        spawn::spawn_future(&self.rt, future, options);
     }
 }
 

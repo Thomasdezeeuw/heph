@@ -1,6 +1,5 @@
 //! Module with shared runtime internals.
 
-use std::future::Future;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
@@ -11,9 +10,8 @@ use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
 use crate::scheduler::shared::{Process, Scheduler};
-use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, Task};
+use crate::setup::scheduler::{ProcessId, RunStats, Task};
 use crate::setup::timers::{SharedTimers, TimerToken};
-use crate::spawn::FutureOptions;
 use crate::spawn::options::Priority;
 use crate::timing_wheel::SharedTimingWheel;
 use crate::trace;
@@ -163,20 +161,6 @@ impl RuntimeInternals {
             },
             None => current,
         }
-    }
-
-    /// Spawn a thread-safe `future`.
-    #[allow(clippy::needless_pass_by_value)]
-    pub(crate) fn spawn_future<Fut>(&self, future: Fut, options: FutureOptions)
-    where
-        Fut: Future<Output = ()> + Send + Sync + 'static,
-    {
-        let task = FutureTask(future);
-        let name = task.name();
-        let pid = self
-            .scheduler
-            .add_new_task(options.priority(), Box::pin(task));
-        log::debug!(pid, name; "spawned thread-safe future");
     }
 
     /// Add a new task to the scheduler.

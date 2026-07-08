@@ -322,7 +322,7 @@ impl Runtime {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.spawn_future(future, options);
+        spawn::spawn_future(&self.internals, future, options);
     }
 
     /// Run the function `f` on all worker threads.
@@ -510,7 +510,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.shared().spawn_future(future, options);
+        spawn::spawn_future(self.internals.shared(), future, options);
     }
 
     /// Receive process signals as messages.
