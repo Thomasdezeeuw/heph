@@ -6,14 +6,6 @@ mod util;
 
 #[path = "functional/access.rs"]
 mod access;
-#[path = "functional/actor_context.rs"]
-mod actor_context;
-#[path = "functional/actor_group.rs"]
-mod actor_group;
-#[path = "functional/actor_ref.rs"]
-mod actor_ref;
-#[path = "functional/from_message.rs"]
-mod from_message;
 #[path = "functional/future.rs"]
 mod future;
 #[path = "functional/pipe.rs"]
