@@ -29,6 +29,17 @@ mod util {
         }
     }
 
+    pub(crate) fn block_on_many(mut futs: Vec<Pin<&mut dyn Future<Output = ()>>>) {
+        let mut ctx = task::Context::from_waker(task::Waker::noop());
+        while !futs.is_empty() {
+            futs.extract_if(.., |fut| match fut.as_mut().poll(&mut ctx) {
+                Poll::Ready(()) => true,
+                Poll::Pending => false,
+            })
+            .for_each(drop)
+        }
+    }
+
     pub(crate) fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         match fut.poll(&mut ctx) {
@@ -88,6 +99,7 @@ mod functional {
     mod actor;
     mod actor_group;
     mod actor_ref;
+    mod from_message;
     mod restart_supervisor;
     mod stop_supervisor;
     mod sync_actor;

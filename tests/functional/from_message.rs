@@ -1,14 +1,13 @@
 //! Tests for the `from_message!` macro.
 
-use std::time::Duration;
+use std::pin::pin;
 
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
-use heph::from_message;
 use heph::supervisor::NoSupervisor;
-use heph_rt::ThreadLocal;
-use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, try_spawn_local};
+use heph::{ActorFuture, from_message};
+
+use crate::util::block_on_many;
 
 #[derive(Debug)]
 enum Message {
@@ -24,22 +23,15 @@ from_message!(Message::Rpc2(String, usize) -> (usize, usize));
 #[test]
 fn from_message() {
     let pong_actor = actor_fn(pong_actor);
-    let pong_ref = try_spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default()).unwrap();
+    let (pong_actor, pong_ref) = ActorFuture::new(NoSupervisor, pong_actor, ());
 
     let ping_actor = actor_fn(ping_actor);
-    let ping_ref = try_spawn_local(
-        NoSupervisor,
-        ping_actor,
-        pong_ref.clone(),
-        ActorOptions::default(),
-    )
-    .unwrap();
+    let (ping_actor, _) = ActorFuture::new(NoSupervisor, ping_actor, pong_ref.clone());
 
-    join(&ping_ref, Duration::from_secs(1)).unwrap();
-    join(&pong_ref, Duration::from_secs(1)).unwrap();
+    block_on_many(vec![pin!(ping_actor), pin!(pong_actor)]);
 }
 
-async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Message>) {
+async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
     actor_ref.send("Hello!".to_owned()).await.unwrap();
 
     let response = actor_ref.rpc("Rpc".to_owned()).await.unwrap();
@@ -49,7 +41,7 @@ async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Messa
     assert_eq!(response, (1, 2));
 }
 
-async fn pong_actor(mut ctx: actor::Context<Message, ThreadLocal>) {
+async fn pong_actor(mut ctx: actor::Context<Message>) {
     let msg = ctx.receive_next().await.unwrap();
     assert!(matches!(msg, Message::Msg(msg) if msg == "Hello!"));
 
