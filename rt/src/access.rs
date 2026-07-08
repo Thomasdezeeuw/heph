@@ -37,9 +37,10 @@ use std::{fmt, task};
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
 use crate::setup::timers::TimerToken;
+use crate::shared::{self, SharedRuntimeData};
 use crate::spawn::{self, ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
-use crate::{Runtime, RuntimeRef, shared};
+use crate::{Runtime, RuntimeRef};
 
 /// Queue to submit asynchronous operations to.
 ///

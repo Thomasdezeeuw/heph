@@ -19,6 +19,7 @@ use crate::wakers::shared::Wakers;
 
 /// Trait to support type erasure needed by [`ThreadSafe`].
 pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
+    fn sq(&self) -> &a10::SubmissionQueue;
 }
 
 /// Shared internals of the runtime.
@@ -115,11 +116,6 @@ impl RuntimeInternals {
             Err(TryLockError::WouldBlock) => Ok(()),
             Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O ring: {err}"),
         }
-    }
-
-    /// Returns the submission queue.
-    pub(crate) const fn sq(&self) -> &a10::SubmissionQueue {
-        &self.sq
     }
 
     /// Add a timer.
@@ -247,4 +243,7 @@ impl RuntimeInternals {
 }
 
 impl SharedRuntimeData for RuntimeInternals {
+    fn sq(&self) -> &a10::SubmissionQueue {
+        &self.sq
+    }
 }

@@ -27,12 +27,11 @@ use heph::supervisor::NoSupervisor;
 use crate::error::StringError;
 use crate::setup::scheduler::{Process, Scheduler, Task};
 use crate::setup::timers::Timers;
+use crate::shared::{self, SharedRuntimeData};
 use crate::spawn::options::ActorOptions;
 use crate::trace::Trace;
 use crate::util::next;
-use crate::{
-    self as rt, Access, RuntimeRef, ThreadLocal, local, panic_message, process, shared, trace,
-};
+use crate::{self as rt, Access, RuntimeRef, ThreadLocal, local, panic_message, process, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 const SYSTEM_ACTORS: usize = 2;
