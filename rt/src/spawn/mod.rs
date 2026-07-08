@@ -61,8 +61,14 @@
 //! [`RuntimeRef::try_spawn`]: crate::RuntimeRef::try_spawn
 //! [`ThreadSafe`]: crate::access::ThreadSafe
 
+use std::sync::Arc;
+
 use heph::supervisor::Supervisor;
-use heph::{ActorRef, NewActor, actor};
+use heph::{ActorFutureBuilder, ActorRef, NewActor, actor};
+
+use crate::access::{ThreadLocal, ThreadSafe};
+use crate::setup::scheduler::{FutureTask, Task};
+use crate::{RuntimeRef, shared};
 
 pub mod options;
 
@@ -150,4 +156,79 @@ where
         self.runtime()
             .try_spawn(supervisor, new_actor, arg, options)
     }
+}
+
+#[allow(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
+pub(crate) fn try_spawn_local<S, NA>(
+    rt: &mut RuntimeRef,
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> Result<ActorRef<NA::Message>, NA::Error>
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+{
+    let (task, actor_ref) = ActorFutureBuilder::new()
+        .with_rt(rt.clone())
+        .with_inbox_size(options.inbox_size())
+        .try_build(supervisor, new_actor, arg)?;
+    let pid = rt
+        .internals
+        .add_local_task(options.priority(), Box::pin(task));
+    let name = NA::name();
+    log::debug!(pid, name; "spawned thread-local actor");
+    Ok(actor_ref)
+}
+
+#[allow(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
+pub(crate) fn spawn_local_future<Fut>(rt: &mut RuntimeRef, future: Fut, options: FutureOptions)
+where
+    Fut: Future<Output = ()> + 'static,
+{
+    let task = FutureTask(future);
+    let name = task.name();
+    let pid = rt
+        .internals
+        .add_local_task(options.priority(), Box::pin(task));
+    log::debug!(pid, name; "spawned thread-local future");
+}
+
+#[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
+pub(crate) fn try_spawn<S, NA>(
+    rt: &Arc<shared::RuntimeInternals>,
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> Result<ActorRef<NA::Message>, NA::Error>
+where
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
+    NA::Actor: Send + Sync + 'static,
+    NA::Message: Send,
+{
+    let (task, actor_ref) = ActorFutureBuilder::new()
+        .with_rt(ThreadSafe::new(rt.clone()))
+        .with_inbox_size(options.inbox_size())
+        .try_build(supervisor, new_actor, arg)?;
+    let pid = rt.add_new_task(options.priority(), Box::pin(task));
+    let name = NA::name();
+    log::debug!(pid, name; "spawned thread-safe actor");
+    Ok(actor_ref)
+}
+
+#[allow(clippy::needless_pass_by_value)]
+pub(crate) fn spawn_future<Fut>(
+    rt: &Arc<shared::RuntimeInternals>,
+    future: Fut,
+    options: FutureOptions,
+) where
+    Fut: Future<Output = ()> + Send + Sync + 'static,
+{
+    let task = FutureTask(future);
+    let name = task.name();
+    let pid = rt.add_new_task(options.priority(), Box::pin(task));
+    log::debug!(pid, name; "spawned thread-safe future");
 }

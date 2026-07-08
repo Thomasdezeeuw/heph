@@ -145,7 +145,7 @@ use std::time::Duration;
 
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph::{ActorFutureBuilder, NewActor, SyncActor};
+use heph::{NewActor, SyncActor};
 
 pub mod access;
 mod bitmap;
@@ -187,7 +187,6 @@ use info::Info;
 use local::LocalRuntimeData;
 use metrics::{LocalMetrics, SharedMetrics};
 use setup::Setup;
-use setup::scheduler::{FutureTask, Task};
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.
@@ -323,7 +322,7 @@ impl Runtime {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.spawn_future(future, options);
+        spawn::spawn_future(&self.internals, future, options);
     }
 
     /// Run the function `f` on all worker threads.
@@ -398,8 +397,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.internals
-            .try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(&self.internals, supervisor, new_actor, arg, options)
     }
 }
 
@@ -499,12 +497,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        let task = FutureTask(future);
-        let name = task.name();
-        let pid = self
-            .internals
-            .add_local_task(options.priority(), Box::pin(task));
-        log::debug!(pid, name; "spawned thread-local future");
+        spawn::spawn_local_future(self, future, options);
     }
 
     /// Spawn a thread-safe [`Future`].
@@ -517,7 +510,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.shared().spawn_future(future, options);
+        spawn::spawn_future(self.internals.shared(), future, options);
     }
 
     /// Receive process signals as messages.
@@ -589,17 +582,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
-        let rt = self.clone();
-        let (task, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(rt)
-            .with_inbox_size(options.inbox_size())
-            .try_build(supervisor, new_actor, arg)?;
-        let pid = self
-            .internals
-            .add_local_task(options.priority(), Box::pin(task));
-        let name = NA::name();
-        log::debug!(pid, name; "spawned thread-local actor");
-        Ok(actor_ref)
+        spawn::try_spawn_local(self, supervisor, new_actor, arg, options)
     }
 }
 
@@ -621,9 +604,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.internals
-            .shared()
-            .try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(self.internals.shared(), supervisor, new_actor, arg, options)
     }
 }
 

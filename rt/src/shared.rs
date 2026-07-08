@@ -1,28 +1,21 @@
 //! Module with shared runtime internals.
 
-use std::future::Future;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
-use heph::actor_ref::ActorRef;
-use heph::supervisor::Supervisor;
-use heph::{ActorFutureBuilder, NewActor};
-
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
 use crate::metrics::SharedMetrics;
 use crate::scheduler::shared::{Process, Scheduler};
-use crate::setup::scheduler::{FutureTask, ProcessId, RunStats, Task};
+use crate::setup::scheduler::{ProcessId, RunStats, Task};
 use crate::setup::timers::{SharedTimers, TimerToken};
-#[cfg(test)]
 use crate::spawn::options::Priority;
-use crate::spawn::{ActorOptions, FutureOptions};
 use crate::timing_wheel::SharedTimingWheel;
+use crate::trace;
 use crate::wakers::shared::Wakers;
-use crate::{ThreadSafe, trace};
 
 /// Shared internals of the runtime.
 #[derive(Debug)]
@@ -170,55 +163,13 @@ impl RuntimeInternals {
         }
     }
 
-    /// Spawn a thread-safe actor.
-    #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
-    pub(crate) fn try_spawn<S, NA>(
-        self: &Arc<Self>,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        let rt = ThreadSafe::new(self.clone());
-        let (task, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(rt)
-            .with_inbox_size(options.inbox_size())
-            .try_build(supervisor, new_actor, arg)?;
-        let pid = self
-            .scheduler
-            .add_new_task(options.priority(), Box::pin(task));
-        let name = NA::name();
-        log::debug!(pid, name; "spawned thread-safe actor");
-        Ok(actor_ref)
-    }
-
-    /// Spawn a thread-safe `future`.
-    #[allow(clippy::needless_pass_by_value)]
-    pub(crate) fn spawn_future<Fut>(&self, future: Fut, options: FutureOptions)
-    where
-        Fut: Future<Output = ()> + Send + Sync + 'static,
-    {
-        let task = FutureTask(future);
-        let name = task.name();
-        let pid = self
-            .scheduler
-            .add_new_task(options.priority(), Box::pin(task));
-        log::debug!(pid, name; "spawned thread-safe future");
-    }
-
     /// Add a new task to the scheduler.
-    #[cfg(test)]
-    pub(crate) fn add_new_task<T>(&self, priority: Priority, task: T) -> ProcessId
-    where
-        T: Task + Send + Sync + 'static,
-    {
-        self.scheduler.add_new_task(priority, Box::pin(task))
+    pub(crate) fn add_new_task(
+        &self,
+        priority: Priority,
+        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
+    ) -> ProcessId {
+        self.scheduler.add_new_task(priority, task)
     }
 
     /// See [`Scheduler::mark_ready`].
