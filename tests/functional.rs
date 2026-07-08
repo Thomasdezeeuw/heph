@@ -29,6 +29,22 @@ mod util {
         }
     }
 
+    pub(crate) fn block_on_many(mut futs: Vec<Pin<Box<dyn Future<Output = ()>>>>) {
+        let mut ctx = task::Context::from_waker(task::Waker::noop());
+        while !futs.is_empty() {
+            futs.extract_if(.., |fut| match fut.as_mut().poll(&mut ctx) {
+                Poll::Ready(()) => true,
+                Poll::Pending => false,
+            })
+            .for_each(drop)
+        }
+    }
+
+    pub(crate) fn poll<Fut: Future>(fut: Pin<&mut Fut>) -> Poll<Fut::Output> {
+        let mut ctx = task::Context::from_waker(task::Waker::noop());
+        fut.poll(&mut ctx)
+    }
+
     pub(crate) fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         match fut.poll(&mut ctx) {
@@ -81,13 +97,37 @@ mod util {
             Ok(())
         }
     }
+
+    /// Returns a [`Future`] that return [`Poll::Pending`] once, without waking
+    /// itself.
+    pub(crate) const fn pending_once() -> PendingOnce {
+        PendingOnce(false)
+    }
+
+    pub(crate) struct PendingOnce(bool);
+
+    impl Future for PendingOnce {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+            if self.0 {
+                Poll::Ready(())
+            } else {
+                self.0 = true;
+                ctx.waker().wake_by_ref();
+                Poll::Pending
+            }
+        }
+    }
 }
 
 #[path = "functional"] // rustfmt can't find the files.
 mod functional {
     mod actor;
+    mod actor_context;
     mod actor_group;
     mod actor_ref;
+    mod from_message;
     mod restart_supervisor;
     mod stop_supervisor;
     mod sync_actor;
