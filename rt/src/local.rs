@@ -18,10 +18,11 @@ use crate::metrics::{LocalMetrics, SharedMetrics};
 use crate::scheduler::LocalScheduler;
 use crate::setup::scheduler::{ProcessId, Scheduler, Task};
 use crate::setup::timers::{TimerToken, Timers};
+use crate::shared::{self, SharedRuntimeData};
 use crate::spawn::options::Priority;
 #[cfg(any(test, feature = "test"))]
 use crate::timing_wheel::TimingWheel;
-use crate::{RuntimeRef, panic_message, process, shared, trace, worker};
+use crate::{RuntimeRef, panic_message, process, trace, worker};
 
 /// Trait to support type erasure needed by [`RuntimeRef`].
 pub(crate) trait LocalRuntimeData: fmt::Debug {
@@ -63,7 +64,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
 
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn try_poll_shared_ring(&self) -> io::Result<()>;
-    fn shared(&self) -> &Arc<shared::RuntimeInternals>;
+    fn shared(&self) -> Arc<dyn SharedRuntimeData>;
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
 }
 
@@ -330,8 +331,8 @@ where
         self.shared.try_poll_ring()
     }
 
-    fn shared(&self) -> &Arc<shared::RuntimeInternals> {
-        &self.shared
+    fn shared(&self) -> Arc<dyn SharedRuntimeData> {
+        self.shared.clone()
     }
 
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {

@@ -37,7 +37,7 @@ use std::{fmt, task};
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
 use crate::setup::timers::TimerToken;
-use crate::shared::{self, SharedRuntimeData};
+use crate::shared::SharedRuntimeData;
 use crate::spawn::{self, ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
 use crate::{Runtime, RuntimeRef};
@@ -213,11 +213,11 @@ impl PrivateAccess for ThreadLocal {
 /// [`spawn_future`]: ThreadSafe::spawn_future
 #[derive(Clone)]
 pub struct ThreadSafe {
-    rt: Arc<shared::RuntimeInternals>,
+    rt: Arc<dyn SharedRuntimeData>,
 }
 
 impl ThreadSafe {
-    pub(crate) const fn new(rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
+    pub(crate) const fn new(rt: Arc<dyn SharedRuntimeData>) -> ThreadSafe {
         ThreadSafe { rt }
     }
 
@@ -382,15 +382,12 @@ where
 /// [`spawn_future`]: Sync::spawn_future
 #[derive(Clone)]
 pub struct Sync {
-    rt: Arc<shared::RuntimeInternals>,
+    rt: Arc<dyn SharedRuntimeData>,
     trace_log: Option<trace::Log>,
 }
 
 impl Sync {
-    pub(crate) const fn new(
-        rt: Arc<shared::RuntimeInternals>,
-        trace_log: Option<trace::Log>,
-    ) -> Sync {
+    pub(crate) const fn new(rt: Arc<dyn SharedRuntimeData>, trace_log: Option<trace::Log>) -> Sync {
         Sync { rt, trace_log }
     }
 

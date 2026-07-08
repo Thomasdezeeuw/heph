@@ -69,7 +69,7 @@ use heph::{ActorFutureBuilder, ActorRef, NewActor, actor};
 use crate::RuntimeRef;
 use crate::access::{ThreadLocal, ThreadSafe};
 use crate::setup::scheduler::{FutureTask, Task};
-use crate::shared::{self, SharedRuntimeData};
+use crate::shared::SharedRuntimeData;
 
 pub mod options;
 
@@ -198,7 +198,7 @@ where
 
 #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
 pub(crate) fn try_spawn<S, NA>(
-    rt: &Arc<shared::RuntimeInternals>,
+    rt: &Arc<dyn SharedRuntimeData>,
     supervisor: S,
     new_actor: NA,
     arg: NA::Argument,
@@ -222,7 +222,7 @@ where
 
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) fn spawn_future<Fut>(
-    rt: &Arc<shared::RuntimeInternals>,
+    rt: &Arc<dyn SharedRuntimeData>,
     future: Fut,
     options: FutureOptions,
 ) where

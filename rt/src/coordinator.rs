@@ -74,7 +74,7 @@ impl Setup {
     /// `workers` and `sync_workers` must be sorted based on `id`.
     pub(crate) fn complete(
         self,
-        internals: Arc<shared::RuntimeInternals>,
+        internals: Arc<dyn shared::SharedRuntimeData>,
         workers: Vec<worker::Handle>,
         sync_workers: Vec<sync_worker::Handle>,
         signal_refs: ActorGroup<process::Signal>,
@@ -109,7 +109,7 @@ pub(crate) struct Coordinator {
     /// I/O ring.
     ring: a10::Ring,
     /// Internals shared between the coordinator and all (sync) workers.
-    internals: Arc<shared::RuntimeInternals>,
+    internals: Arc<dyn shared::SharedRuntimeData>,
     /// Handles to the worker threads.
     workers: Vec<Option<worker::Handle>>,
     /// Handles to the sync worker threads.

@@ -73,10 +73,10 @@ use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::bitmap::AtomicBitMap;
+use crate::shared::SharedRuntimeData;
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::{
-    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, local, panic_message, shared,
-    sync_worker,
+    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, local, panic_message, sync_worker,
 };
 
 #[doc(no_inline)]
@@ -100,7 +100,7 @@ fn test_coordinator() -> &'static Runtime {
     })
 }
 
-pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
+pub(crate) fn shared_internals() -> Arc<dyn SharedRuntimeData> {
     test_coordinator().internals.clone()
 }
 
@@ -110,11 +110,14 @@ pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
 ///
 /// The returned runtime reference is **not** a reference to the *test* runtime
 /// as described in the module documentation.
+// TODO: remove this function and the Any trait from SharedRuntimeData.
 pub(crate) fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
         static TEST_RT: RuntimeRef = {
-            let internals = Rc::new(local::RuntimeInternals::new_test(shared_internals()));
+            let shared: Arc<dyn Any + Send + std::marker::Sync> = shared_internals();
+            let shared = shared.downcast().unwrap();
+            let internals = Rc::new(local::RuntimeInternals::new_test(shared));
             RuntimeRef { internals }
         };
     }
