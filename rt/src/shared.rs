@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
-use std::{io, task};
+use std::{fmt, io, task};
 
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
@@ -16,6 +16,10 @@ use crate::spawn::options::Priority;
 use crate::timing_wheel::SharedTimingWheel;
 use crate::trace;
 use crate::wakers::shared::Wakers;
+
+/// Trait to support type erasure needed by [`ThreadSafe`].
+pub(crate) trait SharedRuntimeData: fmt::Debug {
+}
 
 /// Shared internals of the runtime.
 #[derive(Debug)]
@@ -240,4 +244,7 @@ impl RuntimeInternals {
         self.worker_shutdown.wait().set(worker_id.get());
         self.coordinator_sq.wake();
     }
+}
+
+impl SharedRuntimeData for RuntimeInternals {
 }
