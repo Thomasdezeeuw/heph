@@ -37,7 +37,7 @@ use std::{fmt, task};
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
 use crate::setup::timers::TimerToken;
-use crate::spawn::{ActorOptions, FutureOptions, Spawn};
+use crate::spawn::{self, ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
 use crate::{Runtime, RuntimeRef, shared};
 
@@ -297,7 +297,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(&self.rt, supervisor, new_actor, arg, options)
     }
 }
 
@@ -423,7 +423,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(&self.rt, supervisor, new_actor, arg, options)
     }
 }
 

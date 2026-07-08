@@ -397,8 +397,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.internals
-            .try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(&self.internals, supervisor, new_actor, arg, options)
     }
 }
 
@@ -605,9 +604,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.internals
-            .shared()
-            .try_spawn(supervisor, new_actor, arg, options)
+        spawn::try_spawn(self.internals.shared(), supervisor, new_actor, arg, options)
     }
 }
 
