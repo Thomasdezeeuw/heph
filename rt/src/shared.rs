@@ -18,7 +18,7 @@ use crate::trace;
 use crate::wakers::shared::Wakers;
 
 /// Trait to support type erasure needed by [`ThreadSafe`].
-pub(crate) trait SharedRuntimeData: fmt::Debug {
+pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
 }
 
 /// Shared internals of the runtime.
