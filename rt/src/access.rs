@@ -37,9 +37,10 @@ use std::{fmt, task};
 use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
 use crate::setup::timers::TimerToken;
+use crate::shared::SharedRuntimeData;
 use crate::spawn::{self, ActorOptions, FutureOptions, Spawn};
 use crate::trace::{self, Trace};
-use crate::{Runtime, RuntimeRef, shared};
+use crate::{Runtime, RuntimeRef};
 
 /// Queue to submit asynchronous operations to.
 ///
@@ -212,11 +213,11 @@ impl PrivateAccess for ThreadLocal {
 /// [`spawn_future`]: ThreadSafe::spawn_future
 #[derive(Clone)]
 pub struct ThreadSafe {
-    rt: Arc<shared::RuntimeInternals>,
+    rt: Arc<dyn SharedRuntimeData>,
 }
 
 impl ThreadSafe {
-    pub(crate) const fn new(rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
+    pub(crate) const fn new(rt: Arc<dyn SharedRuntimeData>) -> ThreadSafe {
         ThreadSafe { rt }
     }
 
@@ -252,11 +253,11 @@ impl Access for ThreadSafe {
 
 impl PrivateAccess for ThreadSafe {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        self.rt.add_timer(deadline, waker)
+        self.rt.add_shared_timer(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        self.rt.remove_timer(deadline, token);
+        self.rt.remove_shared_timer(deadline, token);
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -381,15 +382,12 @@ where
 /// [`spawn_future`]: Sync::spawn_future
 #[derive(Clone)]
 pub struct Sync {
-    rt: Arc<shared::RuntimeInternals>,
+    rt: Arc<dyn SharedRuntimeData>,
     trace_log: Option<trace::Log>,
 }
 
 impl Sync {
-    pub(crate) const fn new(
-        rt: Arc<shared::RuntimeInternals>,
-        trace_log: Option<trace::Log>,
-    ) -> Sync {
+    pub(crate) const fn new(rt: Arc<dyn SharedRuntimeData>, trace_log: Option<trace::Log>) -> Sync {
         Sync { rt, trace_log }
     }
 

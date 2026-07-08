@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
-use std::{io, task};
+use std::{fmt, io, task};
 
 use crate::bitmap::AtomicBitMap;
 use crate::info::Info;
@@ -16,6 +16,39 @@ use crate::spawn::options::Priority;
 use crate::timing_wheel::SharedTimingWheel;
 use crate::trace;
 use crate::wakers::shared::Wakers;
+
+/// Trait to support type erasure needed by [`ThreadSafe`].
+// NOTE: the Any trait is required for `test::runtime`.
+pub(crate) trait SharedRuntimeData: std::any::Any + Send + Sync + fmt::Debug {
+    fn info(&self) -> &Info;
+    fn metrics(&self) -> SharedMetrics;
+
+    fn sq(&self) -> &a10::SubmissionQueue;
+
+    fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
+    fn remove_shared_timer(&self, deadline: Instant, token: TimerToken);
+
+    fn add_shared_task(
+        &self,
+        priority: Priority,
+        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
+    ) -> ProcessId;
+
+    fn start_trace(&self) -> Option<trace::EventTiming>;
+
+    fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    );
+
+    /// MUST only be used by the coordinator.
+    fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>);
+
+    fn notify_worker_stop(&self, worker_id: NonZeroUsize);
+}
 
 /// Shared internals of the runtime.
 #[derive(Debug)]
@@ -79,22 +112,6 @@ impl RuntimeInternals {
         }))
     }
 
-    pub(crate) fn info(&self) -> &Info {
-        &self.info
-    }
-
-    /// Returns metrics about the shared scheduler and timers.
-    pub(crate) fn metrics(&self) -> SharedMetrics {
-        SharedMetrics {
-            start: self.start,
-            scheduler_ready: self.scheduler.ready(),
-            scheduler_inactive: self.scheduler.inactive(),
-            timers: self.timers.len(),
-            timers_next: self.timers.until_next_deadline(),
-            trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
-        }
-    }
-
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
         self.wakers.new_task_waker(pid)
@@ -111,27 +128,6 @@ impl RuntimeInternals {
             Err(TryLockError::WouldBlock) => Ok(()),
             Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O ring: {err}"),
         }
-    }
-
-    /// Returns the submission queue.
-    pub(crate) const fn sq(&self) -> &a10::SubmissionQueue {
-        &self.sq
-    }
-
-    /// Add a timer.
-    ///
-    /// See [`SharedTimers::add`].
-    pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        log::trace!(deadline:?; "adding timer");
-        self.timers.add(deadline, waker)
-    }
-
-    /// Remove a previously set timer.
-    ///
-    /// See [`SharedTimers::remove`].
-    pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        log::trace!(deadline:?; "removing timer");
-        self.timers.remove(deadline, token);
     }
 
     /// Wake all futures who's timers has expired.
@@ -161,15 +157,6 @@ impl RuntimeInternals {
             },
             None => current,
         }
-    }
-
-    /// Add a new task to the scheduler.
-    pub(crate) fn add_new_task(
-        &self,
-        priority: Priority,
-        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
-    ) -> ProcessId {
-        self.scheduler.add_new_task(priority, task)
     }
 
     /// See [`Scheduler::mark_ready`].
@@ -208,12 +195,51 @@ impl RuntimeInternals {
             .as_ref()
             .map(|t| t.new_stream(worker_id.get() as u32))
     }
+}
 
-    pub(crate) fn start_trace(&self) -> Option<trace::EventTiming> {
+impl SharedRuntimeData for RuntimeInternals {
+    fn info(&self) -> &Info {
+        &self.info
+    }
+
+    fn metrics(&self) -> SharedMetrics {
+        SharedMetrics {
+            start: self.start,
+            scheduler_ready: self.scheduler.ready(),
+            scheduler_inactive: self.scheduler.inactive(),
+            timers: self.timers.len(),
+            timers_next: self.timers.until_next_deadline(),
+            trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
+        }
+    }
+
+    fn sq(&self) -> &a10::SubmissionQueue {
+        &self.sq
+    }
+
+    fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        log::trace!(deadline:?; "adding shared timer");
+        self.timers.add(deadline, waker)
+    }
+
+    fn remove_shared_timer(&self, deadline: Instant, token: TimerToken) {
+        log::trace!(deadline:?; "removing shared timer");
+        self.timers.remove(deadline, token);
+    }
+
+    fn add_shared_task(
+        &self,
+        priority: Priority,
+        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
+    ) -> ProcessId {
+        self.scheduler.add_new_task(priority, task)
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
         trace::start(&self.trace_log.as_deref())
     }
 
-    pub(crate) fn finish_trace(
+    fn finish_trace(
         &self,
         timing: Option<trace::EventTiming>,
         substream_id: u64,
@@ -229,13 +255,11 @@ impl RuntimeInternals {
         );
     }
 
-    /// MUST only be used by the coordinator.
-    pub(crate) fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
+    fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
         let _ = self.worker_shutdown.set(bitmap);
     }
 
-    /// Notify the coordinator that a (sync) worker stopped.
-    pub(crate) fn notify_worker_stop(&self, worker_id: NonZeroUsize) {
+    fn notify_worker_stop(&self, worker_id: NonZeroUsize) {
         log::trace!(worker_id; "notifying worker thread stopped");
         self.worker_shutdown.wait().set(worker_id.get());
         self.coordinator_sq.wake();

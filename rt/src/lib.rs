@@ -207,7 +207,7 @@ pub struct Runtime {
     /// Setup for the coordinator that will oversee the worker threads.
     coordinator_setup: coordinator::Setup,
     /// Internals shared between the coordinator and all (sync) workers.
-    internals: Arc<shared::RuntimeInternals>,
+    internals: Arc<dyn shared::SharedRuntimeData>,
     /// Worker threads.
     workers: Vec<worker::Handle>,
     /// Synchronous actor threads.
@@ -510,7 +510,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        spawn::spawn_future(self.internals.shared(), future, options);
+        spawn::spawn_future(&self.internals.shared(), future, options);
     }
 
     /// Receive process signals as messages.
@@ -604,7 +604,8 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        spawn::try_spawn(self.internals.shared(), supervisor, new_actor, arg, options)
+        let shared = self.internals.shared();
+        spawn::try_spawn(&shared, supervisor, new_actor, arg, options)
     }
 }
 

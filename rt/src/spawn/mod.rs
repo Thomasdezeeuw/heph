@@ -66,9 +66,10 @@ use std::sync::Arc;
 use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, ActorRef, NewActor, actor};
 
+use crate::RuntimeRef;
 use crate::access::{ThreadLocal, ThreadSafe};
 use crate::setup::scheduler::{FutureTask, Task};
-use crate::{RuntimeRef, shared};
+use crate::shared::SharedRuntimeData;
 
 pub mod options;
 
@@ -197,7 +198,7 @@ where
 
 #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
 pub(crate) fn try_spawn<S, NA>(
-    rt: &Arc<shared::RuntimeInternals>,
+    rt: &Arc<dyn SharedRuntimeData>,
     supervisor: S,
     new_actor: NA,
     arg: NA::Argument,
@@ -213,7 +214,7 @@ where
         .with_rt(ThreadSafe::new(rt.clone()))
         .with_inbox_size(options.inbox_size())
         .try_build(supervisor, new_actor, arg)?;
-    let pid = rt.add_new_task(options.priority(), Box::pin(task));
+    let pid = rt.add_shared_task(options.priority(), Box::pin(task));
     let name = NA::name();
     log::debug!(pid, name; "spawned thread-safe actor");
     Ok(actor_ref)
@@ -221,7 +222,7 @@ where
 
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) fn spawn_future<Fut>(
-    rt: &Arc<shared::RuntimeInternals>,
+    rt: &Arc<dyn SharedRuntimeData>,
     future: Fut,
     options: FutureOptions,
 ) where
@@ -229,6 +230,6 @@ pub(crate) fn spawn_future<Fut>(
 {
     let task = FutureTask(future);
     let name = task.name();
-    let pid = rt.add_new_task(options.priority(), Box::pin(task));
+    let pid = rt.add_shared_task(options.priority(), Box::pin(task));
     log::debug!(pid, name; "spawned thread-safe future");
 }
