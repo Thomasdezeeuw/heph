@@ -6,8 +6,6 @@ mod util;
 
 #[path = "functional/access.rs"]
 mod access;
-#[path = "functional/actor.rs"]
-mod actor;
 #[path = "functional/actor_context.rs"]
 mod actor_context;
 #[path = "functional/actor_group.rs"]
