@@ -29,6 +29,16 @@ pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
         priority: Priority,
         task: Pin<Box<dyn Task + Send + Sync + 'static>>,
     ) -> ProcessId;
+
+    fn start_trace(&self) -> Option<trace::EventTiming>;
+
+    fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    );
 }
 
 /// Shared internals of the runtime.
@@ -193,26 +203,6 @@ impl RuntimeInternals {
             .map(|t| t.new_stream(worker_id.get() as u32))
     }
 
-    pub(crate) fn start_trace(&self) -> Option<trace::EventTiming> {
-        trace::start(&self.trace_log.as_deref())
-    }
-
-    pub(crate) fn finish_trace(
-        &self,
-        timing: Option<trace::EventTiming>,
-        substream_id: u64,
-        description: &str,
-        attributes: &[(&str, &dyn trace::AttributeValue)],
-    ) {
-        trace::finish(
-            self.trace_log.as_deref(),
-            timing,
-            substream_id,
-            description,
-            attributes,
-        );
-    }
-
     /// MUST only be used by the coordinator.
     pub(crate) fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
         let _ = self.worker_shutdown.set(bitmap);
@@ -247,5 +237,25 @@ impl SharedRuntimeData for RuntimeInternals {
         task: Pin<Box<dyn Task + Send + Sync + 'static>>,
     ) -> ProcessId {
         self.scheduler.add_new_task(priority, task)
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        trace::start(&self.trace_log.as_deref())
+    }
+
+    fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        trace::finish(
+            self.trace_log.as_deref(),
+            timing,
+            substream_id,
+            description,
+            attributes,
+        );
     }
 }
