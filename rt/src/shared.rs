@@ -23,6 +23,12 @@ pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
 
     fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
     fn remove_shared_timer(&self, deadline: Instant, token: TimerToken);
+
+    fn add_shared_task(
+        &self,
+        priority: Priority,
+        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
+    ) -> ProcessId;
 }
 
 /// Shared internals of the runtime.
@@ -150,15 +156,6 @@ impl RuntimeInternals {
         }
     }
 
-    /// Add a new task to the scheduler.
-    pub(crate) fn add_new_task(
-        &self,
-        priority: Priority,
-        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
-    ) -> ProcessId {
-        self.scheduler.add_new_task(priority, task)
-    }
-
     /// See [`Scheduler::mark_ready`].
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
         self.scheduler.mark_ready(pid);
@@ -242,5 +239,13 @@ impl SharedRuntimeData for RuntimeInternals {
     fn remove_shared_timer(&self, deadline: Instant, token: TimerToken) {
         log::trace!(deadline:?; "removing shared timer");
         self.timers.remove(deadline, token);
+    }
+
+    fn add_shared_task(
+        &self,
+        priority: Priority,
+        task: Pin<Box<dyn Task + Send + Sync + 'static>>,
+    ) -> ProcessId {
+        self.scheduler.add_new_task(priority, task)
     }
 }

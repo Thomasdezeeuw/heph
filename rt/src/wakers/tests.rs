@@ -7,7 +7,7 @@ mod shared {
     use std::time::Duration;
 
     use crate::setup::scheduler::{Process as _, ProcessId, RunStats, Task};
-    use crate::shared;
+    use crate::shared::{self, SharedRuntimeData};
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
 
@@ -34,7 +34,7 @@ mod shared {
     fn waker() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_task(Priority::NORMAL, Box::pin(TestTask));
+        let pid = shared_internals.add_shared_task(Priority::NORMAL, Box::pin(TestTask));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -66,7 +66,7 @@ mod shared {
         let shared_internals = new_internals();
 
         // Add a test process.
-        let pid = shared_internals.add_new_task(Priority::NORMAL, Box::pin(TestTask));
+        let pid = shared_internals.add_shared_task(Priority::NORMAL, Box::pin(TestTask));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -91,7 +91,7 @@ mod shared {
     fn wake_from_different_thread() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_task(Priority::NORMAL, Box::pin(TestTask));
+        let pid = shared_internals.add_shared_task(Priority::NORMAL, Box::pin(TestTask));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
