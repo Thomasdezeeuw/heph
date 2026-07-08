@@ -22,9 +22,6 @@
 //!  * Waiting on spawned actors:
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!    * [`join_all`]: wait all actors in a group to finish running.
-//!  * Initialising actors:
-//!    * [`init_local_actor`]: initialise a thread-local actor.
-//!    * [`init_actor`]: initialise a thread-safe actor.
 //!  * Polling:
 //!    * [`poll_actor`]: poll an [`Actor`].
 //!    * [`poll_future`]: poll a [`Future`].
@@ -574,36 +571,6 @@ pub fn join_all<M>(actors: &ActorGroup<M>, timeout: Duration) -> JoinResult {
         Some(()) => JoinResult::Ok,
         None => JoinResult::TimedOut,
     }
-}
-
-/// Initialise a thread-local actor.
-#[allow(clippy::type_complexity)]
-pub fn init_local_actor<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<RuntimeAccess = ThreadLocal>,
-{
-    let (sender, receiver) = inbox::new_small();
-    let ctx = actor::Context::new(receiver, runtime());
-    let actor = new_actor.new(ctx, arg)?;
-    Ok((actor, ActorRef::local(sender)))
-}
-
-/// Initialise a thread-safe actor.
-#[allow(clippy::type_complexity)]
-pub fn init_actor<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<RuntimeAccess = ThreadSafe>,
-{
-    let (sender, receiver) = inbox::new_small();
-    let ctx = actor::Context::new(receiver, ThreadSafe::new(shared_internals()));
-    let actor = new_actor.new(ctx, arg)?;
-    Ok((actor, ActorRef::local(sender)))
 }
 
 /// Spawn a synchronous actor.
