@@ -1,4 +1,4 @@
-//! Module with shared runtime internals.
+//! Module with local runtime internals.
 
 use std::cell::{Cell, RefCell};
 use std::num::NonZeroUsize;
