@@ -253,11 +253,11 @@ impl Access for ThreadSafe {
 
 impl PrivateAccess for ThreadSafe {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        self.rt.add_timer(deadline, waker)
+        self.rt.add_shared_timer(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        self.rt.remove_timer(deadline, token);
+        self.rt.remove_shared_timer(deadline, token);
     }
 
     fn cpu(&self) -> Option<usize> {

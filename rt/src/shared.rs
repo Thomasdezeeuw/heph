@@ -20,6 +20,9 @@ use crate::wakers::shared::Wakers;
 /// Trait to support type erasure needed by [`ThreadSafe`].
 pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
     fn sq(&self) -> &a10::SubmissionQueue;
+
+    fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
+    fn remove_shared_timer(&self, deadline: Instant, token: TimerToken);
 }
 
 /// Shared internals of the runtime.
@@ -116,22 +119,6 @@ impl RuntimeInternals {
             Err(TryLockError::WouldBlock) => Ok(()),
             Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O ring: {err}"),
         }
-    }
-
-    /// Add a timer.
-    ///
-    /// See [`SharedTimers::add`].
-    pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        log::trace!(deadline:?; "adding timer");
-        self.timers.add(deadline, waker)
-    }
-
-    /// Remove a previously set timer.
-    ///
-    /// See [`SharedTimers::remove`].
-    pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        log::trace!(deadline:?; "removing timer");
-        self.timers.remove(deadline, token);
     }
 
     /// Wake all futures who's timers has expired.
@@ -245,5 +232,15 @@ impl RuntimeInternals {
 impl SharedRuntimeData for RuntimeInternals {
     fn sq(&self) -> &a10::SubmissionQueue {
         &self.sq
+    }
+
+    fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        log::trace!(deadline:?; "adding shared timer");
+        self.timers.add(deadline, waker)
+    }
+
+    fn remove_shared_timer(&self, deadline: Instant, token: TimerToken) {
+        log::trace!(deadline:?; "removing shared timer");
+        self.timers.remove(deadline, token);
     }
 }
