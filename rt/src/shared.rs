@@ -20,6 +20,7 @@ use crate::wakers::shared::Wakers;
 /// Trait to support type erasure needed by [`ThreadSafe`].
 pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
     fn info(&self) -> &Info;
+    fn metrics(&self) -> SharedMetrics;
 
     fn sq(&self) -> &a10::SubmissionQueue;
 
@@ -103,18 +104,6 @@ impl RuntimeInternals {
                 worker_shutdown: OnceLock::new(),
             }
         }))
-    }
-
-    /// Returns metrics about the shared scheduler and timers.
-    pub(crate) fn metrics(&self) -> SharedMetrics {
-        SharedMetrics {
-            start: self.start,
-            scheduler_ready: self.scheduler.ready(),
-            scheduler_inactive: self.scheduler.inactive(),
-            timers: self.timers.len(),
-            timers_next: self.timers.until_next_deadline(),
-            trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
-        }
     }
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
@@ -217,6 +206,17 @@ impl RuntimeInternals {
 impl SharedRuntimeData for RuntimeInternals {
     fn info(&self) -> &Info {
         &self.info
+    }
+
+    fn metrics(&self) -> SharedMetrics {
+        SharedMetrics {
+            start: self.start,
+            scheduler_ready: self.scheduler.ready(),
+            scheduler_inactive: self.scheduler.inactive(),
+            timers: self.timers.len(),
+            timers_next: self.timers.until_next_deadline(),
+            trace_counter: self.trace_log.as_ref().map_or(0, |t| t.counter() as usize),
+        }
     }
 
     fn sq(&self) -> &a10::SubmissionQueue {
