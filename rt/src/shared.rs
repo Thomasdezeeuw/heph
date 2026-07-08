@@ -19,6 +19,8 @@ use crate::wakers::shared::Wakers;
 
 /// Trait to support type erasure needed by [`ThreadSafe`].
 pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
+    fn info(&self) -> &Info;
+
     fn sq(&self) -> &a10::SubmissionQueue;
 
     fn add_shared_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken;
@@ -101,10 +103,6 @@ impl RuntimeInternals {
                 worker_shutdown: OnceLock::new(),
             }
         }))
-    }
-
-    pub(crate) fn info(&self) -> &Info {
-        &self.info
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -217,6 +215,10 @@ impl RuntimeInternals {
 }
 
 impl SharedRuntimeData for RuntimeInternals {
+    fn info(&self) -> &Info {
+        &self.info
+    }
+
     fn sq(&self) -> &a10::SubmissionQueue {
         &self.sq
     }
