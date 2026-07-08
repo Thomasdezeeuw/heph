@@ -40,6 +40,11 @@ mod util {
         }
     }
 
+    pub(crate) fn poll<Fut: Future>(fut: Pin<&mut Fut>) -> Poll<Fut::Output> {
+        let mut ctx = task::Context::from_waker(task::Waker::noop());
+        fut.poll(&mut ctx)
+    }
+
     pub(crate) fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         match fut.poll(&mut ctx) {
@@ -97,6 +102,7 @@ mod util {
 #[path = "functional"] // rustfmt can't find the files.
 mod functional {
     mod actor;
+    mod actor_context;
     mod actor_group;
     mod actor_ref;
     mod from_message;
