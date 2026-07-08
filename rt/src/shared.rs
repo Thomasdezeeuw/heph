@@ -42,6 +42,9 @@ pub(crate) trait SharedRuntimeData: Send + Sync + fmt::Debug {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     );
+
+    /// MUST only be used by the coordinator.
+    fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>);
 }
 
 /// Shared internals of the runtime.
@@ -190,11 +193,6 @@ impl RuntimeInternals {
             .map(|t| t.new_stream(worker_id.get() as u32))
     }
 
-    /// MUST only be used by the coordinator.
-    pub(crate) fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
-        let _ = self.worker_shutdown.set(bitmap);
-    }
-
     /// Notify the coordinator that a (sync) worker stopped.
     pub(crate) fn notify_worker_stop(&self, worker_id: NonZeroUsize) {
         log::trace!(worker_id; "notifying worker thread stopped");
@@ -259,5 +257,9 @@ impl SharedRuntimeData for RuntimeInternals {
             description,
             attributes,
         );
+    }
+
+    fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
+        let _ = self.worker_shutdown.set(bitmap);
     }
 }
