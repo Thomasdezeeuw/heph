@@ -145,7 +145,7 @@ use std::time::Duration;
 
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph::{ActorFutureBuilder, NewActor, SyncActor};
+use heph::{NewActor, SyncActor};
 
 pub mod access;
 mod bitmap;
@@ -589,17 +589,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
-        let rt = self.clone();
-        let (task, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(rt)
-            .with_inbox_size(options.inbox_size())
-            .try_build(supervisor, new_actor, arg)?;
-        let pid = self
-            .internals
-            .add_local_task(options.priority(), Box::pin(task));
-        let name = NA::name();
-        log::debug!(pid, name; "spawned thread-local actor");
-        Ok(actor_ref)
+        spawn::try_spawn_local(self, supervisor, new_actor, arg, options)
     }
 }
 

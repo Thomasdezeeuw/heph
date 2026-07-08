@@ -62,7 +62,10 @@
 //! [`ThreadSafe`]: crate::access::ThreadSafe
 
 use heph::supervisor::Supervisor;
-use heph::{ActorRef, NewActor, actor};
+use heph::{ActorFutureBuilder, ActorRef, NewActor, actor};
+
+use crate::RuntimeRef;
+use crate::access::ThreadLocal;
 
 pub mod options;
 
@@ -150,4 +153,28 @@ where
         self.runtime()
             .try_spawn(supervisor, new_actor, arg, options)
     }
+}
+
+#[allow(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
+pub(crate) fn try_spawn_local<S, NA>(
+    rt: &mut RuntimeRef,
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> Result<ActorRef<NA::Message>, NA::Error>
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+{
+    let (task, actor_ref) = ActorFutureBuilder::new()
+        .with_rt(rt.clone())
+        .with_inbox_size(options.inbox_size())
+        .try_build(supervisor, new_actor, arg)?;
+    let pid = rt
+        .internals
+        .add_local_task(options.priority(), Box::pin(task));
+    let name = NA::name();
+    log::debug!(pid, name; "spawned thread-local actor");
+    Ok(actor_ref)
 }
