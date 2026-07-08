@@ -45,9 +45,8 @@ impl<S: Schedule> LocalScheduler<S> {
     #[doc(hidden)]
     #[cfg(any(test, feature = "test"))]
     pub fn new_testing() -> LocalScheduler<S> {
-        use crate::access::Access;
-        let rt = crate::test::runtime();
-        let waker = WorkerWaker::new(rt.sq());
+        let sq = crate::test::shared_internals().sq().clone();
+        let waker = WorkerWaker::new(sq);
         LocalScheduler::new(waker)
     }
 

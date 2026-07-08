@@ -55,7 +55,6 @@ use std::future::{Future, poll_fn};
 use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::pin::{Pin, pin};
-use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
@@ -66,14 +65,13 @@ use heph::actor::{self, Actor, NewActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use heph::sync::{SyncActor, SyncWaker};
-use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::bitmap::AtomicBitMap;
 use crate::shared::SharedRuntimeData;
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::{
-    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, local, panic_message, sync_worker,
+    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, panic_message, sync_worker,
 };
 
 #[doc(no_inline)]
@@ -99,27 +97,6 @@ fn test_coordinator() -> &'static Runtime {
 
 pub(crate) fn shared_internals() -> Arc<dyn SharedRuntimeData> {
     test_coordinator().internals.clone()
-}
-
-/// Returns a reference to a fake local runtime.
-///
-/// # Notes
-///
-/// The returned runtime reference is **not** a reference to the *test* runtime
-/// as described in the module documentation.
-// TODO: remove this function and the Any trait from SharedRuntimeData.
-pub(crate) fn runtime() -> RuntimeRef {
-    thread_local! {
-        /// Per thread runtime.
-        static TEST_RT: RuntimeRef = {
-            let shared: Arc<dyn Any + Send + std::marker::Sync> = shared_internals();
-            let shared = shared.downcast().unwrap();
-            let internals = Rc::new(local::RuntimeInternals::new_test(shared));
-            RuntimeRef { internals }
-        };
-    }
-
-    TEST_RT.with(|rt| rt.clone())
 }
 
 /// Run function `f` on the *test* runtime.

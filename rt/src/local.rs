@@ -14,14 +14,10 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
 use crate::info::Info;
 use crate::metrics::{LocalMetrics, SharedMetrics};
-#[cfg(any(test, feature = "test"))]
-use crate::scheduler::LocalScheduler;
 use crate::setup::scheduler::{ProcessId, Scheduler, Task};
 use crate::setup::timers::{TimerToken, Timers};
 use crate::shared::{self, SharedRuntimeData};
 use crate::spawn::options::Priority;
-#[cfg(any(test, feature = "test"))]
-use crate::timing_wheel::TimingWheel;
 use crate::{RuntimeRef, panic_message, process, trace, worker};
 
 /// Trait to support type erasure needed by [`RuntimeRef`].
@@ -171,25 +167,6 @@ where
     /// Take a fatal worker error, if set.
     pub(crate) fn take_err(&self) -> Option<worker::Error> {
         self.error.borrow_mut().take()
-    }
-}
-
-#[cfg(any(test, feature = "test"))]
-impl RuntimeInternals<LocalScheduler, TimingWheel> {
-    pub(crate) fn new_test(
-        shared_internals: Arc<shared::RuntimeInternals>,
-    ) -> RuntimeInternals<LocalScheduler, TimingWheel> {
-        let ring = a10::Ring::new().unwrap();
-        let waker = worker::WorkerWaker::new(ring.sq());
-        RuntimeInternals::new(
-            NonZeroUsize::new(1).unwrap(),
-            shared_internals,
-            ring,
-            LocalScheduler::new(waker),
-            TimingWheel::new(),
-            None,
-            None,
-        )
     }
 }
 
