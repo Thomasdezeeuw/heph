@@ -66,6 +66,7 @@ use heph::{ActorFutureBuilder, ActorRef, NewActor, actor};
 
 use crate::RuntimeRef;
 use crate::access::ThreadLocal;
+use crate::setup::scheduler::{FutureTask, Task};
 
 pub mod options;
 
@@ -177,4 +178,17 @@ where
     let name = NA::name();
     log::debug!(pid, name; "spawned thread-local actor");
     Ok(actor_ref)
+}
+
+#[allow(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
+pub(crate) fn spawn_local_future<Fut>(rt: &mut RuntimeRef, future: Fut, options: FutureOptions)
+where
+    Fut: Future<Output = ()> + 'static,
+{
+    let task = FutureTask(future);
+    let name = task.name();
+    let pid = rt
+        .internals
+        .add_local_task(options.priority(), Box::pin(task));
+    log::debug!(pid, name; "spawned thread-local future");
 }
