@@ -342,7 +342,7 @@ impl ReadyMap {
         static VTABLE: task::RawWakerVTable =
             task::RawWakerVTable::new(clone, wake, wake_by_ref, drop);
 
-        const INDEX_SHIFT: usize = 64 - (u16::BITS as usize);
+        const INDEX_SHIFT: usize = (usize::BITS - u16::BITS) as usize;
         const INDEX_MASK: usize = !((u16::MAX as usize) << INDEX_SHIFT);
 
         unsafe fn clone(data: *const ()) -> task::RawWaker {
@@ -382,7 +382,7 @@ impl ReadyMap {
 
         #[allow(clippy::cast_possible_truncation)]
         fn untag(ptr: *const ()) -> (NonNull<ReadyMapInner>, u16) {
-            let index = (ptr.addr() >> (INDEX_SHIFT)) as u16;
+            let index = (ptr.addr() >> INDEX_SHIFT) as u16;
             let ptr = ptr.map_addr(|ptr| ptr & INDEX_MASK).cast_mut().cast();
             (unsafe { NonNull::new_unchecked(ptr) }, index)
         }
