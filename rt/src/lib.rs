@@ -558,11 +558,6 @@ impl RuntimeRef {
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
         self.internals.shared_ring_pollable(sq)
     }
-
-    /// Returns a copy of the shared internals.
-    fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
-        self.internals.clone_shared()
-    }
 }
 
 impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef

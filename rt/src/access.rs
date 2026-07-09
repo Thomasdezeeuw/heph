@@ -241,7 +241,7 @@ impl From<&Runtime> for ThreadSafe {
 
 impl From<&RuntimeRef> for ThreadSafe {
     fn from(rt: &RuntimeRef) -> ThreadSafe {
-        ThreadSafe::new(rt.clone_shared())
+        ThreadSafe::new(rt.internals.shared())
     }
 }
 

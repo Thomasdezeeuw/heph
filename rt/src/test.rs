@@ -259,7 +259,7 @@ where
     let waker = SyncWaker::new();
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
-        let ctx = actor::Context::new(receiver, ThreadSafe::new(runtime_ref.clone_shared()));
+        let ctx = actor::Context::new(receiver, ThreadSafe::new(runtime_ref.internals.shared()));
         let actor = match new_actor.new(ctx, arg) {
             Ok(actor) => actor,
             Err(err) => {

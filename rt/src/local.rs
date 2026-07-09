@@ -61,7 +61,6 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     fn shared_ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable;
     fn try_poll_shared_ring(&self) -> io::Result<()>;
     fn shared(&self) -> Arc<dyn SharedRuntimeData>;
-    fn clone_shared(&self) -> Arc<shared::RuntimeInternals>;
 }
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
@@ -309,10 +308,6 @@ where
     }
 
     fn shared(&self) -> Arc<dyn SharedRuntimeData> {
-        self.shared.clone()
-    }
-
-    fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.shared.clone()
     }
 }
