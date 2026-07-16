@@ -8,6 +8,8 @@ mod util;
 mod access;
 #[path = "functional/future.rs"]
 mod future;
+#[path = "functional/net_server.rs"]
+mod net_server;
 #[path = "functional/pipe.rs"]
 mod pipe;
 #[path = "functional/restart_supervisor.rs"]
@@ -20,8 +22,6 @@ mod scheduler;
 mod spawn;
 #[path = "functional/sync_actor.rs"]
 mod sync_actor;
-#[path = "functional/tcp_server.rs"]
-mod tcp_server;
 #[path = "functional/test.rs"]
 mod test;
 #[path = "functional/timer.rs"]

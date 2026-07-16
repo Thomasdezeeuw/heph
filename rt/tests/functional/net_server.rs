@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -10,12 +11,12 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::StaticBuf;
-use heph_rt::net::{Server, ServerError, ServerMessage};
+use heph_rt::net::{Server, ServerError, ServerMessage, SocketAddress};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
 use heph_rt::{self as rt, Runtime, ThreadLocal, process};
 
-use crate::util::{any_local_address, tcp_connect};
+use crate::util::{any_local_address, stream_connect, tcp_connect, temp_file};
 
 #[test]
 fn message_from_terminate() {
@@ -45,59 +46,83 @@ where
 
 const DATA: &[u8] = b"Hello world";
 
-async fn stream_actor<RT>(
+async fn stream_actor<A, RT>(
     mut ctx: actor::Context<!, RT>,
-    address: SocketAddr,
+    address: A,
     actor_ref: ActorRef<ServerMessage>,
 ) where
+    A: SocketAddress + Clone,
     RT: rt::Access + Clone,
 {
-    let stream = tcp_connect(&mut ctx, address).await.unwrap();
+    let stream = stream_connect(&mut ctx, address).await.unwrap();
 
     let n = stream.send(StaticBuf::from(DATA)).await.unwrap();
     assert_eq!(n, DATA.len());
+
+    let buf = stream.recv(Vec::with_capacity(8)).await.unwrap();
+    assert!(buf.is_empty());
 
     // Send a message to stop the listener.
     actor_ref.send(Terminate).await.unwrap();
 }
 
 #[test]
-fn smoke() {
-    let server = Server::new(
-        any_local_address(),
-        |err| panic!("unexpect error: {err}"),
-        actor_fn(actor),
-        ActorOptions::default(),
-    )
-    .unwrap();
-    let server_address = *server.local_addr();
+fn smoke_tcp() {
+    let test_local = true;
+    test_smoke(any_local_address(), test_local);
+}
 
-    // TCP server should be able to be created outside the setup function and
-    // used in it.
-    let local_server = Server::new(
-        any_local_address(),
+#[test]
+fn smoke_unix() {
+    let path = temp_file("net_server.smoke_unix");
+    let address = std::os::unix::net::SocketAddr::from_pathname(&path).unwrap();
+    let test_local = false; // Can't reuse Unix socket domain paths.
+    test_smoke(address, test_local);
+}
+
+fn test_smoke<A>(address: A, test_local: bool)
+where
+    A: SocketAddress + Clone + fmt::Debug + Send + Sync + 'static,
+    A::Storage: Send + Sync + 'static,
+{
+    let server = Server::new(
+        address.clone(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
         ActorOptions::default(),
     )
     .unwrap();
+    let server_address = server.local_addr().clone();
+
     let mut runtime = Runtime::setup().build().unwrap();
-    runtime
-        .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
-            let server_address = *local_server.local_addr();
-            // Spawn thread-local version.
-            let server_ref = runtime_ref
-                .try_spawn_local(PanicSupervisor, local_server, (), ActorOptions::default())
-                .unwrap();
-            let _ = runtime_ref.spawn_local(
-                NoSupervisor,
-                actor_fn(stream_actor),
-                (server_address, server_ref),
-                ActorOptions::default(),
-            );
-            Ok(())
-        })
+
+    if test_local {
+        // TCP server should be able to be created outside the setup function
+        // and used in it.
+        let local_server = Server::new(
+            address,
+            |err| panic!("unexpect error: {err}"),
+            actor_fn(actor),
+            ActorOptions::default(),
+        )
         .unwrap();
+        runtime
+            .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
+                let server_address = local_server.local_addr().clone();
+                // Spawn thread-local version.
+                let server_ref = runtime_ref
+                    .try_spawn_local(PanicSupervisor, local_server, (), ActorOptions::default())
+                    .unwrap();
+                let _ = runtime_ref.spawn_local(
+                    NoSupervisor,
+                    actor_fn(stream_actor),
+                    (server_address, server_ref),
+                    ActorOptions::default(),
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
 
     // Spawn thread-safe version.
     let server_ref = runtime
@@ -114,7 +139,7 @@ fn smoke() {
 }
 
 #[test]
-fn zero_port() {
+fn tcp_port_zero() {
     let server = Server::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
