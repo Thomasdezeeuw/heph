@@ -414,6 +414,10 @@ fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedF
         // dropping clients.
         sync_set_socket_option::<option::ReuseAddress>(&fd, true)?;
         sync_set_socket_option::<option::ReusePort>(&fd, true)?;
+
+        // Setting TCP_NODELAY on the listener socket means it's set on all the
+        // accepted connections as well.
+        sync_set_socket_option::<option::TcpNoDelay>(&fd, true)?;
     }
     sync_bind(&fd, address)?;
     Ok(fd)
