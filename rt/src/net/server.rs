@@ -48,6 +48,12 @@ use crate::util::{either, next};
 /// The listener is created using streams type ([`Type::STREAM`]). This means
 /// that it works for TCP & Unix Domain Sockets (UDS), but not for e.g. UDP.
 ///
+/// Note however that it's not possible to bind multiple Unix sockets to the
+/// same address, meaning that it's not possible to use the `NewActor`
+/// implementation more than once. This means it's safe to use as thread-safe
+/// version, which spawn the actor once, but not as thread-local actor as this
+/// spawns one actor per worker thread.
+///
 /// [`Type::STREAM`]: crate::net::Type::STREAM
 ///
 /// # Examples
@@ -343,7 +349,7 @@ impl<S, NA, A> Server<S, NA, A> {
         S: Supervisor<NA> + Clone + 'static,
         NA: NewActor<Argument = AsyncFd> + Clone + 'static,
         NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
-        A: SocketAddress + Copy + fmt::Display,
+        A: SocketAddress + Clone + fmt::Debug,
     {
         let fd = bind_listener(address)?;
         // Using a port of 0 (for IP addresses) means the OS selects one for us.
@@ -428,7 +434,7 @@ where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
-    A: SocketAddress + Copy + fmt::Display,
+    A: SocketAddress + Clone + fmt::Debug,
 {
     type Message = ServerMessage;
     type Argument = ();
@@ -445,13 +451,13 @@ where
         let fd = if let Some(fd) = fd {
             fd // Reuse the already created socket if we can.
         } else {
-            bind_listener(self.address)? // Or create a new socket.
+            bind_listener(self.address.clone())? // Or create a new socket.
         };
         let listener = AsyncFd::new(fd, ctx.runtime_ref().sq());
         Ok(server(
             ctx,
             listener,
-            self.address,
+            self.address.clone(),
             self.supervisor.clone(),
             self.new_actor.clone(),
             self.options.clone(),
@@ -472,7 +478,7 @@ where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
-    A: fmt::Display,
+    A: fmt::Debug,
 {
     #[cfg(any(target_os = "android", target_os = "linux"))]
     if let Some(cpu) = ctx.runtime_ref().cpu() {
@@ -487,7 +493,7 @@ where
         .listen(libc::SOMAXCONN.cast_unsigned())
         .await
         .map_err(ServerError::Accept)?;
-    log::trace!(address:% = local; "Server listening");
+    log::trace!(address:? = local; "Server listening");
 
     let mut accept = listener.multishot_accept();
     let mut receive = ctx.receive_next();

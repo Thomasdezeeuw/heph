@@ -258,7 +258,7 @@ pub async fn stream_connect<A, M, RT>(
     address: A,
 ) -> io::Result<AsyncFd>
 where
-    A: SocketAddress + Copy,
+    A: SocketAddress + Clone,
     RT: rt::Access + Clone,
 {
     let mut i = 10;
@@ -272,7 +272,7 @@ where
     .await?;
 
     loop {
-        match stream.connect(address).await {
+        match stream.connect(address.clone()).await {
             Ok(()) => break Ok(stream),
             Err(_) if i >= 1 => {
                 Timer::after(ctx.runtime_ref().clone(), Duration::from_millis(1)).await;
