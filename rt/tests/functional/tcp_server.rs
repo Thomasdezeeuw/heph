@@ -57,6 +57,9 @@ async fn stream_actor<RT>(
     let n = stream.send(StaticBuf::from(DATA)).await.unwrap();
     assert_eq!(n, DATA.len());
 
+    let buf = stream.recv(Vec::with_capacity(8)).await.unwrap();
+    assert!(buf.is_empty());
+
     // Send a message to stop the listener.
     actor_ref.send(Terminate).await.unwrap();
 }
