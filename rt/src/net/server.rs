@@ -1,9 +1,7 @@
 use std::future::Future;
-use std::mem::MaybeUninit;
 use std::net::SocketAddr;
-use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::sync::{Arc, Mutex};
-use std::{fmt, io, ptr};
+use std::{fmt, io};
 
 use heph::actor::{self, NewActor, NoMessages};
 use heph::messages::Terminate;
@@ -13,12 +11,13 @@ use crate::access::Access;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
-#[cfg(any(target_os = "android", target_os = "linux"))]
-use crate::net::option;
-use crate::net::{Domain, SocketAddress};
+use crate::net::{
+    Domain, SocketAddress, Type, option, sync_bind, sync_local_addr, sync_set_socket_option,
+    sync_socket,
+};
+use crate::process;
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
-use crate::{process, syscall};
 
 /// Server actor.
 ///
@@ -351,7 +350,7 @@ impl<S, NA, A> Server<S, NA, A> {
         // However, we still consistently want to use the same port instead of
         // binding to a number of random ports. So get the local address to use
         // as address.
-        let address = local_address(fd.as_raw_fd())?;
+        let address = sync_local_addr(&fd)?;
         Ok(Server {
             socket: Arc::new(Mutex::new(Some(fd))),
             address,
@@ -408,72 +407,20 @@ impl<S, NA, A> Server<S, NA, A> {
 /// blocking I/O.
 fn bind_listener<A: SocketAddress>(address: A) -> io::Result<std::os::fd::OwnedFd> {
     let domain = Domain::for_address(&address);
-    // SAFETY: a10::net::Domain has the same layout as the underlying type,
-    // which is libc::c_int.
-    let raw_domain: libc::c_int = unsafe { std::mem::transmute_copy(&domain) };
-    #[allow(unused_mut)]
-    let mut r#type = libc::SOCK_STREAM;
-    #[cfg(any(target_os = "android", target_os = "linux"))]
-    {
-        r#type |= libc::SOCK_CLOEXEC; // NOTE: don't need SOCK_NONBLOCK for io_uring/A10.
-    }
-    let fd = syscall!(socket(raw_domain, r#type, 0))?;
-    // SAFETY: just created the socket, so it's valid.
-    let socket = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
-
+    let fd = sync_socket(domain, Type::STREAM, None)?;
     if matches!(domain, Domain::IPV4 | Domain::IPV6) {
         // Allow other worker threads and processes to reuse the address and
         // port we're binding to. This allows for restarting the process without
         // dropping clients.
-        let value: libc::c_int = true.into();
-        let ptr = ptr::from_ref(&value).cast();
-        #[allow(clippy::cast_possible_truncation)]
-        let len = size_of::<libc::c_int>() as u32;
-        _ = syscall!(setsockopt(
-            fd,
-            libc::SOL_SOCKET,
-            libc::SO_REUSEADDR,
-            ptr,
-            len
-        ))?;
-        _ = syscall!(setsockopt(
-            fd,
-            libc::SOL_SOCKET,
-            libc::SO_REUSEPORT,
-            ptr,
-            len
-        ))?;
+        sync_set_socket_option::<option::ReuseAddress>(&fd, true)?;
+        sync_set_socket_option::<option::ReusePort>(&fd, true)?;
+
+        // Setting TCP_NODELAY on the listener socket means it's set on all the
+        // accepted connections as well.
+        sync_set_socket_option::<option::TcpNoDelay>(&fd, true)?;
     }
-
-    // Apple systems don't have SOCK_NONBLOCK or SOCK_CLOEXEC.
-    #[cfg(any(
-        target_os = "ios",
-        target_os = "macos",
-        target_os = "tvos",
-        target_os = "visionos",
-        target_os = "watchos",
-    ))]
-    {
-        _ = syscall!(fcntl(fd, libc::F_SETFL, libc::O_NONBLOCK))?;
-        _ = syscall!(fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC))?;
-    }
-
-    // Bind the socket.
-    let addr = address.into_storage();
-    // SAFETY: to call, unsafe to implement.
-    let (ptr, len) = unsafe { A::as_ptr(&addr) };
-    let _ = syscall!(bind(fd, ptr.cast(), len))?;
-
-    Ok(socket)
-}
-
-fn local_address<A: SocketAddress>(fd: RawFd) -> io::Result<A> {
-    let mut addr = MaybeUninit::uninit();
-    // SAFETY: to call, unsafe to implement.
-    let (ptr, mut len) = unsafe { A::as_mut_ptr(&mut addr) };
-    let _ = syscall!(getsockname(fd, ptr.cast(), &raw mut len,))?;
-    // SAFETY: OS initialised the address for us, so we can safely call init.
-    Ok(unsafe { A::init(addr, len) })
+    sync_bind(&fd, address)?;
+    Ok(fd)
 }
 
 impl<S, NA, A> NewActor for Server<S, NA, A>
@@ -549,15 +496,6 @@ where
             Ok(Some(Ok(stream))) => {
                 log::trace!("server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
-                #[cfg(any(target_os = "android", target_os = "linux"))]
-                if let Some(cpu) = ctx.runtime_ref().cpu() {
-                    if let Err(err) = stream
-                        .set_socket_option::<option::IncomingCpu>(cpu as u32)
-                        .await
-                    {
-                        log::warn!("failed to set CPU affinity on accepted connection: {err}");
-                    }
-                }
                 _ = ctx
                     .try_spawn(
                         supervisor.clone(),
