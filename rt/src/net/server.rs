@@ -496,15 +496,6 @@ where
             Ok(Some(Ok(stream))) => {
                 log::trace!("server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
-                #[cfg(any(target_os = "android", target_os = "linux"))]
-                if let Some(cpu) = ctx.runtime_ref().cpu() {
-                    if let Err(err) = stream
-                        .set_socket_option::<option::IncomingCpu>(cpu as u32)
-                        .await
-                    {
-                        log::warn!("failed to set CPU affinity on accepted connection: {err}");
-                    }
-                }
                 _ = ctx
                     .try_spawn(
                         supervisor.clone(),
