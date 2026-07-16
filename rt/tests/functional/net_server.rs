@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -10,12 +11,12 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::StaticBuf;
-use heph_rt::net::{Server, ServerError, ServerMessage};
+use heph_rt::net::{Server, ServerError, ServerMessage, SocketAddress};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
 use heph_rt::{self as rt, Runtime, ThreadLocal, process};
 
-use crate::util::{any_local_address, tcp_connect};
+use crate::util::{any_local_address, stream_connect, tcp_connect};
 
 #[test]
 fn message_from_terminate() {
@@ -45,14 +46,15 @@ where
 
 const DATA: &[u8] = b"Hello world";
 
-async fn stream_actor<RT>(
+async fn stream_actor<A, RT>(
     mut ctx: actor::Context<!, RT>,
-    address: SocketAddr,
+    address: A,
     actor_ref: ActorRef<ServerMessage>,
 ) where
+    A: SocketAddress + Copy,
     RT: rt::Access + Clone,
 {
-    let stream = tcp_connect(&mut ctx, address).await.unwrap();
+    let stream = stream_connect(&mut ctx, address).await.unwrap();
 
     let n = stream.send(StaticBuf::from(DATA)).await.unwrap();
     assert_eq!(n, DATA.len());
@@ -65,9 +67,17 @@ async fn stream_actor<RT>(
 }
 
 #[test]
-fn smoke() {
+fn smoke_tcp() {
+    test_smoke(any_local_address());
+}
+
+fn test_smoke<A>(address: A)
+where
+    A: SocketAddress + Copy + fmt::Display + Send + Sync + 'static,
+    A::Storage: Send + Sync + 'static,
+{
     let server = Server::new(
-        any_local_address(),
+        address.clone(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
         ActorOptions::default(),
@@ -78,7 +88,7 @@ fn smoke() {
     // TCP server should be able to be created outside the setup function and
     // used in it.
     let local_server = Server::new(
-        any_local_address(),
+        address,
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
         ActorOptions::default(),
@@ -117,7 +127,7 @@ fn smoke() {
 }
 
 #[test]
-fn zero_port() {
+fn tcp_port_zero() {
     let server = Server::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),

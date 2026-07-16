@@ -14,7 +14,7 @@ use std::{fmt, io};
 use heph::actor;
 use heph_rt as rt;
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{Domain, Protocol, Type};
+use heph_rt::net::{Domain, Protocol, SocketAddress, Type};
 use heph_rt::timer::Timer;
 
 macro_rules! limited_loop {
@@ -248,6 +248,17 @@ pub async fn tcp_connect<M, RT>(
     address: SocketAddr,
 ) -> io::Result<AsyncFd>
 where
+    RT: rt::Access + Clone,
+{
+    stream_connect(ctx, address).await
+}
+
+pub async fn stream_connect<A, M, RT>(
+    ctx: &mut actor::Context<M, RT>,
+    address: A,
+) -> io::Result<AsyncFd>
+where
+    A: SocketAddress + Copy,
     RT: rt::Access + Clone,
 {
     let mut i = 10;
