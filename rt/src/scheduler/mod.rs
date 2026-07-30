@@ -11,6 +11,7 @@ use std::{fmt, iter, ptr, task, thread};
 
 use crate::setup::scheduler::{Cfs, Process as _, ProcessId, RunStats, Schedule, Scheduler, Task};
 use crate::spawn::options::Priority;
+use crate::tagged_ptr::TaggedPointer;
 use crate::worker::WorkerWaker;
 
 pub(crate) mod process;
@@ -342,52 +343,43 @@ impl ReadyMap {
         static VTABLE: task::RawWakerVTable =
             task::RawWakerVTable::new(clone, wake, wake_by_ref, drop);
 
-        const INDEX_SHIFT: usize = (usize::BITS - u16::BITS) as usize;
-        const INDEX_MASK: usize = !((u16::MAX as usize) << INDEX_SHIFT);
-
         unsafe fn clone(data: *const ()) -> task::RawWaker {
-            let (ptr, _) = untag(data);
+            // SAFETY: we're ensured that the pointer comes from TaggedPointer::as_data_ptr.
+            let tagged_ptr = unsafe { TaggedPointer::<ReadyMapInner>::from_data_ptr(data) };
             // SAFETY: in the creation of the task::Waker we've ensured the
             // pointer is valid.
-            unsafe { ptr.as_ref() }.increase_ref_count();
+            unsafe { tagged_ptr.as_ptr().as_ref() }.increase_ref_count();
             // SAFETY: we can reuse the same data (pointer and index are
             // unchanged).
             task::RawWaker::new(data, &VTABLE)
         }
 
         unsafe fn wake(data: *const ()) {
-            let (ptr, idx) = untag(data);
+            // SAFETY: we're ensured that the pointer comes from TaggedPointer::as_data_ptr.
+            let tagged_ptr = unsafe { TaggedPointer::<ReadyMapInner>::from_data_ptr(data) };
+            let ptr = tagged_ptr.as_ptr();
+            let idx = tagged_ptr.tag1();
             ReadyMap { ptr }.inner().wake(idx);
         }
 
         unsafe fn wake_by_ref(data: *const ()) {
-            let (ptr, idx) = untag(data);
+            // SAFETY: we're ensured that the pointer comes from TaggedPointer::as_data_ptr.
+            let tagged_ptr = unsafe { TaggedPointer::<ReadyMapInner>::from_data_ptr(data) };
+            let ptr = tagged_ptr.as_ptr();
+            let idx = tagged_ptr.tag1();
             // SAFETY: in the creation of the task::Waker we've ensured the
             // pointer is valid.
             unsafe { ptr.as_ref() }.wake(idx);
         }
 
         unsafe fn drop(data: *const ()) {
-            let (ptr, _) = untag(data);
+            // SAFETY: we're ensured that the pointer comes from TaggedPointer::as_data_ptr.
+            let tagged_ptr = unsafe { TaggedPointer::<ReadyMapInner>::from_data_ptr(data) };
+            let ptr = tagged_ptr.as_ptr();
             mem::drop(ReadyMap { ptr });
         }
 
-        fn tag(ptr: NonNull<ReadyMapInner>, index: u16) -> *const () {
-            assert!(usize::from(index) <= BITS_IN_MAP);
-            // We use the 16 upper bits that are unused in 64 bit addresses.
-            ptr.as_ptr()
-                .map_addr(|ptr| ptr | (usize::from(index) << INDEX_SHIFT))
-                .cast()
-        }
-
-        #[allow(clippy::cast_possible_truncation)]
-        fn untag(ptr: *const ()) -> (NonNull<ReadyMapInner>, u16) {
-            let index = (ptr.addr() >> INDEX_SHIFT) as u16;
-            let ptr = ptr.map_addr(|ptr| ptr & INDEX_MASK).cast_mut().cast();
-            (unsafe { NonNull::new_unchecked(ptr) }, index)
-        }
-
-        let data = tag(self.ptr, index);
+        let data = TaggedPointer::new1(self.ptr, index).as_data_ptr();
         self.inner().increase_ref_count(); // One for the new waker.
         unsafe { task::Waker::new(data, &VTABLE) }
     }
