@@ -225,7 +225,7 @@ struct ProcessSlot<S> {
     ///
     /// Or as an enum:
     ///
-    /// ```
+    /// ```ignore
     /// enum ProcessSlot<S> {
     ///     Waiting(Pin<Box<Process<S>>>),
     ///     Ready,
