@@ -40,12 +40,14 @@ impl<S: Schedule, T: Task + ?Sized> Process<S, T> {
     }
 
     pub(crate) fn update(self: Pin<&mut Self>, stats: &RunStats) {
+        // SAFETY: not moving the future.
         unsafe { self.get_unchecked_mut().scheduler_data.update(stats) };
     }
 
     // TODO: remove
     pub(crate) fn set_id(self: &mut Pin<Box<Self>>) {
         let pid = ProcessId::new(ptr::from_ref(&**self).addr());
+        // SAFETY: not moving the future.
         unsafe { self.as_mut().get_unchecked_mut().id = pid };
     }
 }

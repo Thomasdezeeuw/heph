@@ -636,6 +636,7 @@ fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
 /// Helper macro to execute a system call that returns an `io::Result`.
 macro_rules! syscall {
     ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{
+        // SAFETY: the caller must ensure the system call is made correctly.
         let res = unsafe { libc::$fn($( $arg, )*) };
         if res == -1 {
             Err(std::io::Error::last_os_error())
