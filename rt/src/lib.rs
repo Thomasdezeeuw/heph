@@ -96,7 +96,6 @@
 
 #![feature(
     async_iterator,
-    box_vec_non_null,
     impl_trait_in_assoc_type,
     never_type,
     stmt_expr_attributes
