@@ -9,7 +9,6 @@ use std::ptr::NonNull;
 
 /// Pointer with a single 16 bit or two 8 bit tags.
 #[repr(transparent)]
-#[derive(Copy, Clone)]
 pub(crate) struct TaggedPointer<T> {
     // We use the 16 upper bits that are unused in 64 bit addresses for the tag.
     pointer: NonNull<T>,
@@ -48,6 +47,14 @@ impl<T> TaggedPointer<T> {
     /// Returns the two 8 bit tags.
     pub(crate) fn tag2(self) -> [u8; 2] {
         self.tag1().to_ne_bytes()
+    }
+}
+
+impl<T> Copy for TaggedPointer<T> {}
+
+impl<T> Clone for TaggedPointer<T> {
+    fn clone(&self) -> TaggedPointer<T> {
+        *self
     }
 }
 
