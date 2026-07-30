@@ -15,10 +15,9 @@
 
 use std::num::NonZeroUsize;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use std::{fmt, io, task, thread};
+use std::{fmt, io, ptr, task, thread};
 
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
@@ -153,7 +152,20 @@ where
     let trace_log = conf.shared_internals.worker_trace_log(conf.id);
 
     let timing = trace::start(&trace_log);
-    let worker = Worker::setup(conf, trace_log, init)?;
+    let mut worker = Worker::setup(conf, trace_log)?;
+
+    // Spawn our system actors.
+    // SAFETY: worker is only dropped if we return from the thread.
+    let runtime_ref = RuntimeRef {
+        internals: unsafe { &*ptr::from_ref(&worker.internals) },
+    };
+    let sys_ref = spawn_system_actors(runtime_ref);
+
+    // Let the coordinator know we're ready to start.
+    let res = init.set(sys_ref);
+    assert!(res.is_ok());
+    drop(init);
+
     trace::finish_rt(
         worker.internals.trace_log.borrow_mut().as_mut(),
         timing,
@@ -168,7 +180,7 @@ where
 /// holds and manages everything that is required to run them.
 pub(crate) struct Worker<S, T> {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<local::RuntimeInternals<S, T>>,
+    internals: local::RuntimeInternals<S, T>,
     // See Setup options with the same name for documentation.
     run_poll_ratio: usize,
     max_run_time: Duration,
@@ -183,7 +195,6 @@ where
     fn setup<FS, FT>(
         conf: Conf<FS, FT>,
         trace_log: Option<trace::Log>,
-        init: Arc<OnceLock<ActorRef<Control>>>,
     ) -> Result<Worker<S, T>, Error>
     where
         FS: FnOnce(WorkerWaker) -> S,
@@ -222,7 +233,7 @@ where
 
         // Finally we can create the runtime internals.
         let waker = WorkerWaker(ring.sq());
-        let internals = Rc::new(local::RuntimeInternals::new(
+        let internals = local::RuntimeInternals::new(
             id,
             shared_internals,
             ring,
@@ -230,18 +241,7 @@ where
             create_timers(),
             cpu_affinity,
             trace_log,
-        ));
-
-        // Spawn our system actors.
-        let runtime_ref = RuntimeRef {
-            internals: internals.clone(),
-        };
-        let sys_ref = spawn_system_actors(runtime_ref);
-
-        // Let the coordinator know we're ready to start.
-        let res = init.set(sys_ref);
-        assert!(res.is_ok());
-        drop(init);
+        );
 
         Ok(Worker {
             internals,
@@ -251,7 +251,7 @@ where
     }
 
     /// Run the worker.
-    pub(crate) fn run(mut self) -> Result<(), Error> {
+    pub(crate) fn run(&mut self) -> Result<(), Error> {
         log::debug!(worker_id = self.internals.id; "starting worker");
         loop {
             // We first run the processes and only poll after to ensure that we
@@ -631,7 +631,7 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
-            Control::Run(f) => internals.clone().run_user_function(f),
+            Control::Run(f) => internals.run_user_function(f),
         }
         ctx.finish_trace(timing, "Processing communication message", &[]);
     }

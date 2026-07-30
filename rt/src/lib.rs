@@ -139,7 +139,6 @@ compile_error!("Heph-rt currently only supports 64 bit architectures.");
 use std::any::Any;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -409,7 +408,19 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internals: Rc<dyn LocalRuntimeData>,
+    ///
+    /// # Safety
+    ///
+    /// The `'static` lifetime is a lie. It's really the lifetime of the thread,
+    /// but we can't represent that without adding a lifetime parameter to
+    /// `RuntimeRef`, which is annoying to deal with and something we want to
+    /// avoid.
+    ///
+    /// The runtime internals this points to lives as long as the worker is
+    /// alive, see worker::main. And since RuntimeRef is !Send it's guarnteed to
+    /// remain on the same thread its created on, i.e. the same thread as the
+    /// worker.
+    internals: &'static dyn LocalRuntimeData,
 }
 
 impl RuntimeRef {

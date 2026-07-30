@@ -4,11 +4,10 @@ use std::cell::{Cell, RefCell};
 use std::num::NonZeroUsize;
 use std::panic::{self, AssertUnwindSafe};
 use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::task;
 use std::time::Instant;
-use std::{fmt, io};
+use std::{fmt, io, ptr};
 
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 
@@ -33,9 +32,7 @@ pub(crate) trait LocalRuntimeData: fmt::Debug {
     /// returns an error if no actors want to receive it.
     fn relay_signal(&self, signal: process::Signal);
     /// Run user function `f`, setting the error if it fails.
-    // NOTE: this method should take `&Rc<Self>` (Rc by reference) because it
-    // doesn't need to own it, but that makes it Dyn incompatible.
-    fn run_user_function(self: Rc<Self>, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>);
+    fn run_user_function(&self, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>);
 
     fn local_sq(&self) -> a10::SubmissionQueue;
     fn receive_signals(&self, actor_ref: ActorRef<process::Signal>);
@@ -211,10 +208,12 @@ where
         );
     }
 
-    fn run_user_function(self: Rc<Self>, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
+    fn run_user_function(&self, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
         let timing = trace::start(&*self.trace_log.borrow());
+        // SAFETY: local data stays alive as long as the worker thread is alive,
+        // so extending the lifetime is safe.
         let runtime_ref = RuntimeRef {
-            internals: self.clone(),
+            internals: unsafe { &*ptr::from_ref(self) },
         };
         let result = panic::catch_unwind(AssertUnwindSafe(move || f(runtime_ref)));
         trace::finish_rt(
