@@ -139,7 +139,6 @@ impl Notify {
     /// single line.**
     pub async fn change_state(&self, state: State, status: Option<&str>) -> io::Result<()> {
         log::debug!(state:?, status:?; "updating state with service manager");
-        debug_assert!(!status.contains(['\r', '\n']));
         let state_line = match state {
             State::Ready => "READY=1\n",
             State::Reloading => "RELOADING=1\n",
@@ -147,6 +146,7 @@ impl Notify {
         };
         let state_update = match status {
             Some(status) => {
+                debug_assert!(!status.contains(['\r', '\n']));
                 let mut state_update =
                     String::with_capacity(state_line.len() + 7 + status.len() + 1);
                 state_update.push_str(state_line);
