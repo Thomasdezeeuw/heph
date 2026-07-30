@@ -169,6 +169,7 @@ pub mod spawn;
 mod sync_worker;
 #[cfg(target_os = "linux")]
 pub mod systemd;
+mod tagged_ptr;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod timer;
