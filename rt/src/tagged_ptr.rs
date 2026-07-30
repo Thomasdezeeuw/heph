@@ -48,6 +48,20 @@ impl<T> TaggedPointer<T> {
     pub(crate) fn tag2(self) -> [u8; 2] {
         self.tag1().to_ne_bytes()
     }
+
+    /// Converts the tagged pointer into a data pointer as used by e.g.
+    /// [`std::task::Waker`]. Use [`TaggedPointer::from_data_ptr`] to reverse
+    /// this.
+    pub(crate) fn as_data_ptr(self) -> *const () {
+        self.pointer.as_ptr().cast()
+    }
+
+    /// Reverse of [`TaggedPointer::as_data_ptr`].
+    pub(crate) unsafe fn from_data_ptr(data_ptr: *const ()) -> TaggedPointer<T> {
+        TaggedPointer {
+            pointer: unsafe { NonNull::new_unchecked(data_ptr.cast_mut().cast()) },
+        }
+    }
 }
 
 impl<T> Copy for TaggedPointer<T> {}
