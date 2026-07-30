@@ -139,6 +139,7 @@ impl Notify {
     /// single line.**
     pub async fn change_state(&self, state: State, status: Option<&str>) -> io::Result<()> {
         log::debug!(state:?, status:?; "updating state with service manager");
+        debug_assert!(!status.contains(['\r', '\n']));
         let state_line = match state {
             State::Ready => "READY=1\n",
             State::Reloading => "RELOADING=1\n",
@@ -151,7 +152,6 @@ impl Notify {
                 state_update.push_str(state_line);
                 state_update.push_str("STATUS=");
                 state_update.push_str(status);
-                replace_newline(&mut state_update[state_line.len() + 7..]);
                 state_update.push('\n');
                 state_update
             }
@@ -173,10 +173,10 @@ impl Notify {
     /// [`Notify::change_state`].
     pub async fn change_status(&self, status: &str) -> io::Result<()> {
         log::debug!(status; "updating status with service manager");
+        debug_assert!(!status.contains(['\r', '\n']));
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
         state_update.push_str(status);
-        replace_newline(&mut state_update[7..]);
         state_update.push('\n');
         _ = self.socket.send(state_update).await?;
         Ok(())
@@ -210,17 +210,6 @@ impl Notify {
             .send(StaticBuf::from("WATCHDOG=trigger"))
             .await?;
         Ok(())
-    }
-}
-
-/// Replaces new lines with spaces.
-fn replace_newline(status: &mut str) {
-    // SAFETY: replacing `\r` and `\n` with a space with is still valid UTF-8.
-    for b in unsafe { status.as_bytes_mut().iter_mut() } {
-        match *b {
-            b'\r' | b'\n' => *b = b' ',
-            _ => {}
-        }
     }
 }
 
