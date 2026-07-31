@@ -6,9 +6,11 @@ use std::pin::pin;
 
 use heph::actor::{self, NoMessages};
 use heph::messages::Terminate;
-use heph_rt::net::UdpSocket;
+use heph_rt::extract::Extract;
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{Domain, Protocol, Type, socket};
+use heph_rt::process::Signal;
 use heph_rt::util::either;
-use heph_rt::{self as rt, Signal};
 use log::warn;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -73,7 +75,9 @@ impl<M> TryFrom<Signal> for UdpRelayMessage<M> {
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(UdpRelayMessage::Terminate),
+            Signal::INTERRUPT | Signal::TERMINATION | Signal::QUIT => {
+                Ok(UdpRelayMessage::Terminate)
+            }
             _ => Err(()),
         }
     }
@@ -93,10 +97,17 @@ where
     S: Serde,
     Out: Serialize,
     In: DeserializeOwned,
-    RT: rt::Access,
+    RT: heph_rt::Access,
     R: Route<In>,
 {
-    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let socket = socket(
+        ctx.runtime_ref().sq(),
+        Domain::for_address(&local_address),
+        Type::DGRAM,
+        Some(Protocol::UDP),
+    )
+    .await?;
+    socket.bind(local_address).await?;
 
     let mut uuid_gen = UuidGenerator::new();
     let mut send_buf = Vec::with_capacity(INITIAL_SEND_BUF_SIZE);
@@ -114,7 +125,7 @@ where
             }
             Ok(Ok(UdpRelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.
-            Err(Ok((mut buf, source))) => {
+            Err(Ok((mut buf, source, _))) => {
                 route_message::<S, R, In>(&mut router, &buf, source).await?;
                 buf.clear();
                 recv_data.set(socket.recv_from(buf));
@@ -127,7 +138,7 @@ where
 
 /// Send a `msg` to a remote actor at `target` address, using `socket`.
 async fn send_message<S, M>(
-    socket: &UdpSocket,
+    socket: &AsyncFd,
     mut buf: Vec<u8>,
     uuid_gen: &mut UuidGenerator,
     target: SocketAddr,
@@ -155,7 +166,7 @@ where
         // Don't want to stop the actor for this.
         return Ok(buf);
     }
-    let (buf, bytes_send) = socket.send_to(buf, target).await?;
+    let (buf, bytes_send) = socket.send_to(buf, target).extract().await?;
     if bytes_send == buf.len() {
         Ok(buf)
     } else {

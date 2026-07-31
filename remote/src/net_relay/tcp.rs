@@ -5,12 +5,13 @@ use std::net::SocketAddr;
 use std::pin::pin;
 
 use heph::actor::{self, NoMessages};
-use heph_rt as rt;
-use heph_rt::net::TcpStream;
+use heph_rt::extract::Extract;
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{Domain, Protocol, Type, option, socket};
 use heph_rt::util::either;
 use log::warn;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::net_relay::uuid::UuidGenerator;
 use crate::net_relay::{DeIter, Message, Route, Serde};
@@ -46,7 +47,7 @@ impl<M> TryFrom<Signal> for RelayMessage<M> {
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(RelayMessage::Terminate),
+            Signal::INTERRUPT | Signal::TERMINATION | Signal::QUIT => Ok(UdpRelayMessage::Terminate),
             _ => Err(()),
         }
     }
@@ -67,11 +68,18 @@ where
     S: Serde,
     Out: Serialize,
     In: DeserializeOwned,
-    RT: rt::Access,
+    RT: heph_rt::Access,
     R: Route<In>,
 {
-    let stream = TcpStream::connect(ctx.runtime_ref(), remote_address).await?;
-    stream.set_nodelay(true)?;
+    let stream = socket(
+        ctx.runtime_ref().sq(),
+        Domain::for_address(&remote_address),
+        Type::STREAM,
+        Some(Protocol::TCP),
+    )
+    .await?;
+    stream.set_socket_option::<option::TcpNoDelay>(true).await?;
+    stream.connect(remote_address).await?;
 
     let mut uuid_gen = UuidGenerator::new();
     let mut send_buf = Vec::with_capacity(INITIAL_BUF_SIZE);
@@ -98,7 +106,7 @@ where
 
 /// Send a `msg` to the remote actor, using `stream`.
 async fn send_message<S, M>(
-    stream: &TcpStream,
+    stream: &AsyncFd,
     mut buf: Vec<u8>,
     uuid_gen: &mut UuidGenerator,
     msg: &M,
@@ -116,7 +124,7 @@ where
         return Ok(buf);
     }
 
-    stream.send_all(buf).await
+    stream.send_all(buf).extract().await
 }
 
 /// Routes all messages in `buf` using `router`.
