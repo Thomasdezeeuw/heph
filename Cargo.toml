@@ -17,15 +17,11 @@ edition       = "2024"
 default = []
 
 # Feature that enables the `test` module.
-test = ["getrandom"]
+test = []
 
 [dependencies]
 heph-inbox        = { version = "0.2.3", path = "./inbox", default-features = false }
 log               = { version = "0.4.21", default-features = false, features = ["kv_std"] }
-
-# Optional dependencies, enabled by features.
-# Required by the `test` feature.
-getrandom         = { version = "0.4.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 # NOTE: the following two dependencies may only used by a limited number of examples.

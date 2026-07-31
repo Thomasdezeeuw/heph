@@ -15,10 +15,9 @@
 //! ```
 
 use std::any::Any;
+use std::random::{Rng, SystemRng};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::{fmt, panic, slice};
-
-use log::warn;
 
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use crate::{Actor, NewActor, SyncActor};
@@ -55,12 +54,8 @@ pub(crate) fn should_lose_msg() -> bool {
 /// Returns a number between [0, 100].
 fn random_percentage() -> u8 {
     let mut p = 0;
-    if let Err(err) = getrandom::fill(slice::from_mut(&mut p)) {
-        warn!("error getting random bytes: {err}");
-        100
-    } else {
-        p % 100
-    }
+    SystemRng.fill_bytes(slice::from_mut(&mut p));
+    p % 100
 }
 
 /// Returns the size of the actor.

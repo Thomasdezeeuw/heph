@@ -46,6 +46,7 @@
 //! the `test` module which contains testing facilities.
 
 #![feature(async_iterator, never_type, thread_raw)]
+#![cfg_attr(any(test, feature = "test"), feature(random))]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
