@@ -7,7 +7,6 @@ authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license       = "MIT"
 documentation = "https://docs.rs/heph-http"
 repository    = "https://github.com/Thomasdezeeuw/heph/tree/main/http"
-readme        = "README.md"
 keywords      = ["http", "async"]
 categories    = ["asynchronous", "web-programming"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
