@@ -756,7 +756,6 @@ pub(crate) fn assert_size<T>(expected: usize) {
 /// Actor running without issues.
 ///
 /// ```
-/// # #![feature(never_type)]
 /// use heph::{actor, actor_fn};
 /// use heph_rt::ThreadLocal;
 /// use heph_rt::spawn::options::ActorOptions;

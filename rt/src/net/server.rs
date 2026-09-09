@@ -62,7 +62,6 @@ use crate::util::{either, next};
 /// connection, using the server as a thread-local actor.
 ///
 /// ```
-/// # #![feature(never_type)]
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
@@ -150,7 +149,6 @@ use crate::util::{either, next};
 /// for the previous example, but change the `setup` function.
 ///
 /// ```
-/// # #![feature(never_type)]
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
@@ -236,7 +234,6 @@ use crate::util::{either, next};
 /// actor!* This is just an example show its possible.
 ///
 /// ```
-/// # #![feature(never_type)]
 /// use std::io;
 /// use std::net::SocketAddr;
 ///

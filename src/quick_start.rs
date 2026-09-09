@@ -204,8 +204,6 @@
 //! above.
 //!
 //! ```
-//! # #![feature(never_type)]
-//! #
 //! # use heph_rt::{self as rt, Runtime, RuntimeRef};
 //! fn main() -> Result<(), rt::Error> {
 //!     // First we setup the runtime and configure it.

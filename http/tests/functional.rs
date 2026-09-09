@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(async_iterator, never_type)]
+#![feature(async_iterator)]
 
 #[track_caller]
 fn assert_size<T>(expected: usize) {

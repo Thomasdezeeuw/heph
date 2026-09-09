@@ -24,8 +24,6 @@
 //!
 #![cfg_attr(feature = "json", doc = "```")]
 #![cfg_attr(not(feature = "json"), doc = "```rust,ignore")]
-//! #![feature(never_type)]
-//!
 //! use std::net::SocketAddr;
 //!
 //! use heph::supervisor::NoSupervisor;
@@ -335,8 +333,8 @@ mod private {
 
     use std::fmt;
 
-    use serde::de::DeserializeOwned;
     use serde::Serialize;
+    use serde::de::DeserializeOwned;
 
     #[cfg(feature = "json")]
     use super::Json;

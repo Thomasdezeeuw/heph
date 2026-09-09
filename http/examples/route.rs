@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use std::io;
 use std::time::Duration;
 

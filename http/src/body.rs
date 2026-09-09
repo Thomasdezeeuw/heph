@@ -251,7 +251,6 @@ where
 /// Using this never type (`!`) to remove unused variants.
 ///
 /// ```
-/// #![feature(never_type)]
 /// use heph_http::body::AnyBody;
 ///
 /// # type MyChunkedStream = ();

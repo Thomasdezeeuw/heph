@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(async_iterator, never_type)]
+#![feature(async_iterator)]
 
 mod util;
 

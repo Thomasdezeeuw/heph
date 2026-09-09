@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use std::future::pending;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -3,8 +3,6 @@
 //! Currently using 10 million "actors" this test uses ~2.8 GB and takes less
 //! then 2 seconds to spawn the actors.
 
-#![feature(never_type)]
-
 use std::future::pending;
 
 use heph::actor::{self, actor_fn};

@@ -219,7 +219,6 @@ pub trait NewActor {
     /// additional arguments.
     ///
     /// ```
-    /// # #![feature(never_type)]
     /// use std::io;
     /// use std::net::SocketAddr;
     /// use heph::actor::{self, actor_fn, NewActor};

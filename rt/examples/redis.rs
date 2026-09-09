@@ -3,8 +3,6 @@
 //! * GET
 //! * SET
 
-#![feature(never_type)]
-
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::net::SocketAddr;

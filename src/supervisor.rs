@@ -71,7 +71,6 @@
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph::actor;
 //!

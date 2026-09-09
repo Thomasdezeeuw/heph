@@ -46,8 +46,6 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// # Examples
 ///
 /// ```
-/// # #![feature(never_type)]
-/// #
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
@@ -347,8 +345,6 @@ impl<Fut: Unpin, RT: Access> Unpin for Deadline<Fut, RT> {}
 /// milliseconds.
 ///
 /// ```
-/// # #![feature(never_type)]
-/// #
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///

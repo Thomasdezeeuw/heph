@@ -10,7 +10,6 @@
 //! Creating a new Unix pipe.
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use std::io;
 //!
 //! use heph::actor;
@@ -42,7 +41,6 @@
 //! process.
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use std::io;
 //! use std::process::{Command, Stdio};
 //!

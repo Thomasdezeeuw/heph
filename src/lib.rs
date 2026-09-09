@@ -45,7 +45,7 @@
 //! This crate has one optional feature: `test`. The `test` feature will enable
 //! the `test` module which contains testing facilities.
 
-#![feature(async_iterator, never_type, thread_raw)]
+#![feature(async_iterator, thread_raw)]
 #![cfg_attr(any(test, feature = "test"), feature(random))]
 #![warn(
     anonymous_parameters,

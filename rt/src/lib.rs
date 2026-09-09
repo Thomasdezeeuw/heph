@@ -94,12 +94,7 @@
 //! This crate has one optional: `test`. The `test` feature will enable the
 //! `test` module which adds testing facilities.
 
-#![feature(
-    async_iterator,
-    impl_trait_in_assoc_type,
-    never_type,
-    stmt_expr_attributes
-)]
+#![feature(async_iterator, impl_trait_in_assoc_type, stmt_expr_attributes)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
