@@ -56,7 +56,7 @@ use std::task::{self, Poll};
 
 /// Create a new one-shot channel.
 pub fn new_oneshot<T>() -> (Sender<T>, Receiver<T>) {
-    let shared = NonNull::from(Box::leak(Box::new(Shared::new())));
+    let shared = Box::into_non_null(Box::new(Shared::new()));
     (Sender { shared }, Receiver { shared })
 }
 
